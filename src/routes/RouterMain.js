@@ -6,7 +6,9 @@ import PrivateRoute from './PrivateRoute';
 import { Users } from '../pages/Users';
 import { Clientes } from "../pages/Clientes";
 import ClientesTest from "../pages/ClientesTest";
+
 import ClientesTestMejorado from "../pages/Clientestestmejorado";
+
 import { SingUp } from '../pages/SignUp';
 import { useSelector } from 'react-redux';
 import { TarjetaPrestamo } from "../pages/Clientes/TarjetaPrestamo";
