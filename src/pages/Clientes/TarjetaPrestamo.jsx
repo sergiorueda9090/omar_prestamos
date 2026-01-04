@@ -1,34 +1,22 @@
-import React, {useContext, useEffect, useState} from "react";
-import { MyContext }    from "../../App";
-import {
-  Card,
-  CardContent,
-  Typography,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
-  Box,
-  Stack,
-  Button
-} from '@mui/material';
-
-import {
-  Table,
-  TableHead,
-  TableBody,
-  TableRow,
-  TableCell,
-  Paper,
-  TableContainer
-} from "@mui/material";
-
-import { useSelector, useDispatch } from "react-redux";
+import React, { useContext, useEffect, useState } from "react";
+import { MyContext } from "../../App";
+import { Box } from '@mui/material';
+import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 
+import Header from "./componentsTarjetas/Header";
+import OpcionesPago from "./componentsTarjetas/OpcionesPago";
+import ModalPago from "./componentsTarjetas/ModalPago";
+import InformacionCliente from "./componentsTarjetas/InformacionCliente";
+import DetallesPrestamo from "./componentsTarjetas/DetallesPrestamo";
+import InformacionFinanciera from "./componentsTarjetas/InformacionFinanciera";
+import AnalisisUtilidades from "./componentsTarjetas/AnalisisUtilidades";
+import HistorialPagos from "./componentsTarjetas/HistorialPagos";
+import ProgresoPago from "./componentsTarjetas/ProgresoPago";
+import TablaCuotas from "./componentsTarjetas/TablaCuotas";
+
 export const TarjetaPrestamo = () => {
-        
-    const {
+  const {
     id,
     numeroTarjeta,
     nombre,
@@ -44,124 +32,283 @@ export const TarjetaPrestamo = () => {
     totalInteresPagar,
     saldoTotalPagar,
     cuotas,
-    } = useSelector((state) => state.clientesStore);
+  } = useSelector((state) => state.clientesStore);
+
+  const context = useContext(MyContext);
+  const navigate = useNavigate();
+
+  const utilidad1 = 10;
+  const utilidad2 = 11;
+  const utilidad3 = 12;
+
+  // Estados para los modales
+  //Crea una suma
+  const [openModalCapital, setOpenModalCapital] = useState(false);
+  const [openModalInteres, setOpenModalInteres] = useState(false);
+  const [openModalLiquidar, setOpenModalLiquidar] = useState(false);
+  const [openModalProximaCuota, setOpenModalProximaCuota] = useState(false);
+
+  // Estados para los formularios
+  const [formCapital, setFormCapital] = useState({
+    monto: '',
+    metodoPago: '',
+    referencia: '',
+    observaciones: ''
+  });
+
+  const [formInteres, setFormInteres] = useState({
+    monto: interesMensual,
+    metodoPago: '',
+    referencia: '',
+    observaciones: ''
+  });
+
+  const [formLiquidar, setFormLiquidar] = useState({
+    monto: saldoTotalPagar,
+    metodoPago: '',
+    referencia: '',
+    observaciones: ''
+  });
+
+  const [formProximaCuota, setFormProximaCuota] = useState({
+    monto: valorCuota,
+    metodoPago: '',
+    referencia: '',
+    observaciones: ''
+  });
+
+  // Historial de pagos
+  const [historialPagos, setHistorialPagos] = useState([
+    {
+      id: 1,
+      fecha: "2024-12-01",
+      tipoPago: "Próxima Cuota",
+      monto: 150000,
+      metodoPago: "Efectivo",
+      referencia: "REF-001",
+      usuario: "Admin",
+      observaciones: "Pago de cuota #1"
+    },
+    {
+      id: 2,
+      fecha: "2024-12-05",
+      tipoPago: "Abonar a Capital",
+      monto: 50000,
+      metodoPago: "Transferencia",
+      referencia: "REF-002",
+      usuario: "Admin",
+      observaciones: "Abono extraordinario"
+    },
+    {
+      id: 3,
+      fecha: "2024-12-10",
+      tipoPago: "Pagar Interés",
+      monto: 25000,
+      metodoPago: "Efectivo",
+      referencia: "REF-003",
+      usuario: "Admin",
+      observaciones: "Pago de intereses del mes"
+    },
+  ]);
+
+  // Calcular estadísticas
+  const cuotasPagadas = cuotas?.filter(c => c.estado_pago === "pagado").length || 0;
+  const progresoPago = (cuotasPagadas / (numeroCuotas || 1)) * 100;
+  const utilidadTotal = utilidad1 + utilidad2 + utilidad3;
+  const proximaCuota = cuotas?.find(c => c.estado_pago !== "pagado");
+  const totalPagado = historialPagos.reduce((sum, pago) => sum + pago.monto, 0);
+
+  useEffect(() => {
+    context.setIsHideSideBarAndHeader(false);
+    window.scrollTo(0, 0);
+  }, []);
+
+  const handleDevolver = () => {
+    navigate(`/clientes`);
+  };
+
+  // Handlers para abrir modales
+  const handlePagarCapital = () => setOpenModalCapital(true);
+  const handlePagarInteres = () => {
+    setFormInteres({ ...formInteres, monto: interesMensual });
+    setOpenModalInteres(true);
+  };
+  const handlePagarSaldoTotal = () => {
+    setFormLiquidar({ ...formLiquidar, monto: saldoTotalPagar });
+    setOpenModalLiquidar(true);
+  };
+  const handlePagarProximaCuota = () => {
+    if (proximaCuota) {
+      setFormProximaCuota({ ...formProximaCuota, monto: proximaCuota.valor });
+      setOpenModalProximaCuota(true);
+    }
+  };
+
+  // Handlers para cerrar modales
+  const handleCloseModalCapital = () => {
+    setOpenModalCapital(false);
+    setFormCapital({ monto: '', metodoPago: '', referencia: '', observaciones: '' });
+  };
+  const handleCloseModalInteres = () => setOpenModalInteres(false);
+  const handleCloseModalLiquidar = () => setOpenModalLiquidar(false);
+  const handleCloseModalProximaCuota = () => setOpenModalProximaCuota(false);
+
+  // Handlers para confirmar pagos
+  const agregarPago = (tipoPago, form) => {
+    const nuevoPago = {
+      id: historialPagos.length + 1,
+      fecha: new Date().toISOString().split('T')[0],
+      tipoPago,
+      monto: parseFloat(form.monto),
+      metodoPago: form.metodoPago,
+      referencia: form.referencia || `REF-${Date.now()}`,
+      usuario: "Admin",
+      observaciones: form.observaciones || `Pago de ${tipoPago.toLowerCase()}`
+    };
     
-    const dispatch = useDispatch();
-    const context = useContext(MyContext)
-    const utilidad1 = 10;
-    const utilidad2 = 11;
-    const utilidad3 = 12;
+    setHistorialPagos([...historialPagos, nuevoPago]);
+    return nuevoPago;
+  };
 
-    useEffect(() =>{
-        context.setIsHideSideBarAndHeader(false)
-        window.scrollTo(0,0);
-    },[])
+  const handleConfirmarCapital = () => {
+    agregarPago("Abonar a Capital", formCapital);
+    handleCloseModalCapital();
+  };
 
-    const navigate = useNavigate();
+  const handleConfirmarInteres = () => {
+    agregarPago("Pagar Interés", formInteres);
+    handleCloseModalInteres();
+  };
 
-    const handleDevolver = (clienteId) => {
-      navigate(`/clientes`);
-    };
+  const handleConfirmarLiquidar = () => {
+    agregarPago("Liquidar Préstamo", formLiquidar);
+    handleCloseModalLiquidar();
+  };
 
-    const TablaCuotas = ({ cuotas }) => {
-      if (!cuotas || cuotas.length === 0) {
-        return (
-          <Typography variant="body2" color="text.secondary" textAlign="center">
-            No hay cuotas registradas.
-          </Typography>
-        );
-      }
+  const handleConfirmarProximaCuota = () => {
+    agregarPago("Próxima Cuota", formProximaCuota);
+    handleCloseModalProximaCuota();
+  };
 
-      return (
-        <Box display="flex" justifyContent="center" mt={3}>
-          <TableContainer component={Paper} sx={{ maxWidth: 700 }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell align="center"><strong>Fecha</strong></TableCell>
-                  <TableCell align="center"><strong>Valor</strong></TableCell>
-                  <TableCell align="center"><strong>Estado</strong></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {cuotas.map((cuota, index) => (
-                  <TableRow key={index}>
-                    <TableCell align="center">{cuota.fecha_pago}</TableCell>
-                    <TableCell align="center">${cuota.valor}</TableCell>
-                    <TableCell align="center">
-                      <Typography
-                        color={cuota.estado_pago === "pagado" ? "green" : "blue"}
-                        fontWeight="bold"
-                      >
-                        {cuota.estado_pago.toUpperCase()}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Box>
-      );
-    };
+  return (
+    <div className="right-content w-100">
+      <Box sx={{ p: 3 }}>
+        <Header onDevolver={handleDevolver} />
 
+        <OpcionesPago
+          montoPrestamo={montoPrestamo}
+          interesMensual={interesMensual}
+          saldoTotalPagar={saldoTotalPagar}
+          proximaCuota={proximaCuota}
+          onPagarCapital={handlePagarCapital}
+          onPagarInteres={handlePagarInteres}
+          onPagarSaldoTotal={handlePagarSaldoTotal}
+          onPagarProximaCuota={handlePagarProximaCuota}
+        />
 
-    return (
-        <>
-            <div className="right-content w-100">
-                <div className="card shadow border-0 p-3 mt-4">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h3 className="hd">Detalles del Préstamo</h3>
-                        <Button  className="btn-blue" variant="contained" onClick={handleDevolver}>Devolver</Button>
-                    </div>
-                       <Card sx={{ maxWidth: 700, borderRadius: 3, boxShadow: 3 }}>
-                          <CardContent>
-                            <Typography variant="h5" textAlign="center" gutterBottom>
-                              📄 Detalles del Préstamo
-                            </Typography>
+        {/* Modales */}
+        <ModalPago
+          open={openModalCapital}
+          onClose={handleCloseModalCapital}
+          title="Abonar a Capital"
+          subtitle="Reduce el saldo principal del préstamo"
+          color="#4caf50"
+          iconType="capital"
+          form={formCapital}
+          setForm={setFormCapital}
+          onConfirm={handleConfirmarCapital}
+          montoEditable={true}
+          alertMessage="Este abono reducirá directamente el capital adeudado. No afecta los intereses ya generados."
+          alertSeverity="info"
+          clienteInfo={{ nombre, numeroTarjeta }}
+        />
 
-                            <Stack spacing={1}>
-                              <Typography><strong>Número de Tarjeta:</strong> {numeroTarjeta}</Typography>
-                              <Typography><strong>Nombre del Cliente:</strong> {nombre}</Typography>
-                              <Typography><strong>Fecha del Préstamo:</strong> {fechaPrestamo}</Typography>
-                              <Typography><strong>Tipo de Préstamo:</strong> {tipoPrestamo}</Typography>
-                              <Typography><strong>Duración (meses):</strong> {duracionPrestamo}</Typography>
-                              <Typography><strong>Número de Cuotas:</strong> {numeroCuotas}</Typography>
-                            </Stack>
+        <ModalPago
+          open={openModalInteres}
+          onClose={handleCloseModalInteres}
+          title="Pagar Interés"
+          subtitle="Pago de intereses del período actual"
+          color="#ff9800"
+          iconType="interes"
+          form={formInteres}
+          setForm={setFormInteres}
+          onConfirm={handleConfirmarInteres}
+          montoEditable={false}
+          alertMessage="Este pago cubre únicamente los intereses generados. El capital permanece igual."
+          alertSeverity="warning"
+          clienteInfo={{ nombre, numeroTarjeta }}
+        />
 
-                            <Divider sx={{ my: 2 }} />
+        <ModalPago
+          open={openModalLiquidar}
+          onClose={handleCloseModalLiquidar}
+          title="Liquidar Préstamo"
+          subtitle="Pago total para cerrar el préstamo"
+          color="#f44336"
+          iconType="liquidar"
+          form={formLiquidar}
+          setForm={setFormLiquidar}
+          onConfirm={handleConfirmarLiquidar}
+          montoEditable={false}
+          alertMessage="⚠️ Esta acción liquidará completamente el préstamo. El saldo restante quedará en $0."
+          alertSeverity="error"
+          clienteInfo={{ nombre, numeroTarjeta }}
+        />
 
-                            <Stack spacing={1}>
-                              <Typography><strong>Monto del Préstamo:</strong> ${montoPrestamo}</Typography>
-                              <Typography><strong>Porcentaje de Interés:</strong> {porcentajeInteres}%</Typography>
-                              <Typography><strong>Interés Mensual:</strong> ${interesMensual}</Typography>
-                              <Typography><strong>Valor de Cada Cuota:</strong> ${valorCuota}</Typography>
-                              <Typography><strong>Total a Pagar en Intereses:</strong> ${totalInteresPagar}</Typography>
-                              <Typography><strong>Saldo Total a Pagar:</strong> ${saldoTotalPagar}</Typography>
-                            </Stack>
+        <ModalPago
+          open={openModalProximaCuota}
+          onClose={handleCloseModalProximaCuota}
+          title="Pagar Próxima Cuota"
+          subtitle={proximaCuota ? `Cuota programada para ${proximaCuota.fecha_pago}` : ""}
+          color="#2196f3"
+          iconType="cuota"
+          form={formProximaCuota}
+          setForm={setFormProximaCuota}
+          onConfirm={handleConfirmarProximaCuota}
+          montoEditable={false}
+          alertMessage="Este pago cubre la cuota programada que incluye capital e intereses."
+          alertSeverity="success"
+          clienteInfo={{ nombre, numeroTarjeta }}
+        />
 
-                            <Divider sx={{ my: 2 }} />
+        <InformacionCliente nombre={nombre} numeroTarjeta={numeroTarjeta} />
 
-                            <Stack spacing={1}>
-                              <Typography><strong>📈 Utilidad 1:</strong> {utilidad1}</Typography>
-                              <Typography><strong>📈 Utilidad 2:</strong> {utilidad2}</Typography>
-                              <Typography><strong>📈 Utilidad 3:</strong> {utilidad3}</Typography>
-                            </Stack>
+        <DetallesPrestamo
+          fechaPrestamo={fechaPrestamo}
+          tipoPrestamo={tipoPrestamo}
+          duracionPrestamo={duracionPrestamo}
+          numeroCuotas={numeroCuotas}
+        />
 
-                            <Divider sx={{ my: 2 }} />
+        <InformacionFinanciera
+          montoPrestamo={montoPrestamo}
+          valorCuota={valorCuota}
+          saldoTotalPagar={saldoTotalPagar}
+          interesMensual={interesMensual}
+          porcentajeInteres={porcentajeInteres}
+          totalInteresPagar={totalInteresPagar}
+        />
 
-                            <Typography variant="h6" color="primary" gutterBottom>
-                              🗓 Cuotas Programadas
-                            </Typography>
-                            <List dense>
-                              <TablaCuotas cuotas={cuotas} />
-                            </List>
-                          </CardContent>
-                        </Card>
-                </div>
-            </div>
+        <AnalisisUtilidades
+          utilidad1={utilidad1}
+          utilidad2={utilidad2}
+          utilidad3={utilidad3}
+          utilidadTotal={utilidadTotal}
+        />
 
-        </>
-        
-    )
-}
+        <HistorialPagos
+          historial={historialPagos}
+          totalPagado={totalPagado}
+        />
+
+        <ProgresoPago
+          cuotasPagadas={cuotasPagadas}
+          numeroCuotas={numeroCuotas}
+          progresoPago={progresoPago}
+        />
+
+        <TablaCuotas cuotas={cuotas} />
+      </Box>
+    </div>
+  );
+};

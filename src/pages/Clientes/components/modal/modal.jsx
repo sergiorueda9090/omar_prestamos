@@ -49,6 +49,124 @@ export const Modal = () => {
       dispatch(actionClearData());
   };
 
+  // Función para llenar datos de prueba
+  const llenarDatosPrueba = () => {
+    // Diferentes conjuntos de datos de prueba
+    const nombresPrueba = [
+      'Juan Carlos Pérez García',
+      'María Fernanda López Ramírez',
+      'Carlos Alberto Rodríguez Martínez',
+      'Ana Patricia Gómez Hernández',
+      'Luis Eduardo Torres Sánchez'
+    ];
+
+    const tiposPrestamo = ['Mensual', 'Quincenal', 'Semanal', 'Diario'];
+    const tipoSeleccionado = tiposPrestamo[Math.floor(Math.random() * tiposPrestamo.length)];
+    const nombreSeleccionado = nombresPrueba[Math.floor(Math.random() * nombresPrueba.length)];
+
+    // Datos de prueba base
+    const datosPrueba = {
+      numeroTarjeta: `TC-${Math.floor(Math.random() * 900000) + 100000}`,
+      nombre: nombreSeleccionado,
+      montoPrestamo: '1.000.000',
+      porcentajeInteres: '10',
+      duracionPrestamo: '12',
+      tipoPrestamo: tipoSeleccionado,
+      fechaPrestamo: dayjs().format('YYYY-MM-DD'),
+      diaCobro: dayjs().add(1, 'month').format('YYYY-MM-DD')
+    };
+
+    // Llenar los campos básicos
+    dispatch(actionFormStore({ name: 'numeroTarjeta', value: datosPrueba.numeroTarjeta }));
+    dispatch(actionFormStore({ name: 'nombre', value: datosPrueba.nombre }));
+    dispatch(actionFormStore({ name: 'montoPrestamo', value: datosPrueba.montoPrestamo }));
+    dispatch(actionFormStore({ name: 'porcentajeInteres', value: datosPrueba.porcentajeInteres }));
+    dispatch(actionFormStore({ name: 'duracionPrestamo', value: datosPrueba.duracionPrestamo }));
+    dispatch(actionFormStore({ name: 'tipoPrestamo', value: datosPrueba.tipoPrestamo }));
+    dispatch(actionFormStore({ name: 'fechaPrestamo', value: datosPrueba.fechaPrestamo }));
+    dispatch(actionFormStore({ name: 'diaCobro', value: datosPrueba.diaCobro }));
+
+    // Paso 1: Calcular número de cuotas según tipo de préstamo
+    setTimeout(() => {
+      calcularNumeroCuotasPorDuracion(datosPrueba.tipoPrestamo, datosPrueba.duracionPrestamo);
+
+      // Paso 2: Calcular valores financieros (intereses, total, etc.)
+      setTimeout(() => {
+        calcularPrestamoSimple(
+          datosPrueba.montoPrestamo,
+          datosPrueba.porcentajeInteres,
+          datosPrueba.duracionPrestamo,
+          datosPrueba.tipoPrestamo
+        );
+
+        // Paso 3: Generar las cuotas (necesita numeroCuotas y valorCuota ya calculados)
+        setTimeout(() => {
+          // Aquí ya deberíamos tener numeroCuotas y valorCuota en el store
+          // Vamos a forzar la generación de cuotas
+          const monto = parseFloat(datosPrueba.montoPrestamo.replace(/\./g, ''));
+          const interes = parseFloat(datosPrueba.porcentajeInteres);
+          const tiempo = parseInt(datosPrueba.duracionPrestamo);
+          const interesTotal = monto * (interes / 100) * tiempo;
+          const totalPagar = monto + interesTotal;
+          let cuotaMensual = totalPagar / tiempo;
+
+          // Ajustar cuota según frecuencia
+          switch (datosPrueba.tipoPrestamo.toLowerCase()) {
+            case 'quincenal':
+              cuotaMensual /= 2;
+              break;
+            case 'semanal':
+              cuotaMensual /= 4;
+              break;
+            case 'diario':
+              cuotaMensual /= 30;
+              break;
+            default:
+              break;
+          }
+
+          const formatearSinSimbolo = (valor) =>
+            new Intl.NumberFormat('es-CO', {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0
+            }).format(valor);
+
+          const valorCuotaFormateado = formatearSinSimbolo(cuotaMensual);
+
+          // Calcular número de cuotas
+          const diasEnMes = 30;
+          let numCuotas;
+          switch (datosPrueba.tipoPrestamo.toLowerCase()) {
+            case 'mensual':
+              numCuotas = tiempo;
+              break;
+            case 'quincenal':
+              numCuotas = Math.floor((tiempo * diasEnMes) / 15);
+              break;
+            case 'semanal':
+              numCuotas = Math.floor((tiempo * diasEnMes) / 7);
+              break;
+            case 'diario':
+              numCuotas = tiempo * diasEnMes;
+              break;
+            default:
+              numCuotas = 0;
+          }
+
+          // Generar fechas de cobro
+          const fechasCobro = calcularFechasCobro(
+            datosPrueba.diaCobro,
+            datosPrueba.tipoPrestamo,
+            numCuotas,
+            valorCuotaFormateado
+          );
+
+          dispatch(actionFormStore({ name: 'cuotas', value: fechasCobro }));
+        }, 300);
+      }, 200);
+    }, 100);
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -294,7 +412,21 @@ export const Modal = () => {
   return (
     <>
       <Dialog open={openMolda} fullWidth maxWidth="md">
-        <DialogTitle> { id != "" ? "Editar Cliente": "Crear Cliente"}</DialogTitle>
+        <DialogTitle>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <span>{ id != "" ? "Editar Cliente": "Crear Cliente"}</span>
+            {id === "" && (
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={llenarDatosPrueba}
+                sx={{ textTransform: 'none' }}
+              >
+                Llenar Datos de Prueba
+              </Button>
+            )}
+          </Box>
+        </DialogTitle>
         <form onSubmit={id !== "" ? handlEditSubmit : handleSubmit}>
 
           <DialogContent>

@@ -29,6 +29,7 @@ export const Sidebar = () => {
     { id: 0, label: "Dashboard", icon: <MdDashboard />, path: "/" },
     { id: 1, label: "Usuarios", icon: <FaUsers />, path: "/users" },
     { id: 2, label: "Clientes", icon: <IoMdPeople />, path: "/clientes" },
+    { id: 2, label: "Clientes Test", icon: <IoMdPeople />, path: "/clientestest" },
     {
         id: 13,
         label: "Products",
