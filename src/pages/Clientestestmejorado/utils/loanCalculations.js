@@ -139,12 +139,13 @@ export const calcularUtilidad2 = (cuotasPagadas, montoOriginal, totalInteres, nu
 };
 
 /**
- * Calcula la Utilidad 3 - Ganancia después de recuperar el capital + intereses pagados
+ * Calcula la Utilidad 3 - Ganancia después de recuperar el capital invertido
+ * Comienza en 0 hasta que se recupere el dinero invertido
  */
 export const calcularUtilidad3 = (cuotasPagadas, montoOriginal, interesAcumulado = 0) => {
   const totalPagado = cuotasPagadas.reduce((sum, c) => sum + c.abonado, 0);
   if (totalPagado <= montoOriginal) {
-    return interesAcumulado;
+    return 0; // No hay utilidad hasta recuperar el capital invertido
   }
   return (totalPagado - montoOriginal) + interesAcumulado;
 };

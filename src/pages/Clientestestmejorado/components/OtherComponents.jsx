@@ -52,8 +52,6 @@ import {
   calcularInteresCuota,
 } from '../utils/loanCalculations';
 import TarjetaInformacionPrestamo from './TarjetaInformacionPrestamo';
-import UtilidadesPanel from './UtilidadesPanel';
-import LoanSummary from './LoanSummary';
 
 // ============================================================================
 // DIÁLOGO: CONFIRMAR ELIMINAR PAGO
@@ -1034,7 +1032,6 @@ export const PrestamoConCronograma = ({
 }) => {
   return (
     <>
-      <LoanSummary datos={resumenActual} />
       <LoanInstallmentsManager
         cuotas={cuotas}
         onAplicarPago={handleAplicarPago}
@@ -1098,12 +1095,6 @@ export const TabGestion = ({
           <TarjetaInformacionPrestamo datosPrestamo={datosPrestamo} />
         </Box>
       )}
-      <UtilidadesPanel
-        datosPrestamoOriginal={datosPrestamoOriginal}
-        cuotasPagadas={cuotasConPagos}
-        sinCronograma={datosPrestamoOriginal.sinCronograma}
-        interesAcumulado={interesAcumulado}
-      />
       {datosPrestamoOriginal.sinCronograma ? (
         <PrestamoSinCronograma
           datosPrestamoOriginal={datosPrestamoOriginal}

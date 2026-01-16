@@ -292,13 +292,18 @@ const useLoanManager = () => {
     interes: datosPrestamoOriginal.tasaOriginal,
     valorCuota: datosPrestamoOriginal.valorCuotaOriginal,
     fechaPrestamo: config.fechaPrestamo,
-    abonoTotalIntereses: resumenActual.totalPagado + datosPrestamoOriginal.totalInteresOriginal,
+    abonoTotalIntereses: (resumenActual.totalPagado || 0) + interesAcumulado,
     abonoTotal: resumenActual.totalPagado || 0,
-    saldoTotal: cuotas.reduce((sum, c) => sum + (c.saldo || c.valor), 0),
-    saldoInversionIntereses: 0,
-    interesesPendientes: cuotas.reduce((sum, c) => sum + (c.saldo || c.valor), 0),
-    cuotasPagas: cuotasCompletamentePagadas.length,
-    cuotasPendientes: cuotas.filter(c => c.estado_pago !== 'pagado').length,
+    // Saldo Total: se reduce con pagos de cuotas y abonos parciales (no incluye intereses)
+    saldoTotal: cuotas.reduce((sum, c) => sum + (c.saldo ?? c.valor), 0),
+    // Saldo A Inversion: empieza con el dinero prestado, se resta con pagos, mínimo 0
+    saldoInversionIntereses: Math.max(0, datosPrestamoOriginal.montoOriginal - (resumenActual.totalPagado || 0) - interesAcumulado),
+    // Intereses Pendientes: solo disminuye cuando Abono Total recupera el dinero prestado
+    interesesPendientes: datosPrestamoOriginal.totalInteresOriginal - Math.max(0, (resumenActual.totalPagado || 0) - datosPrestamoOriginal.montoOriginal),
+    // Cuotas Pagas: proporcional (ej: 1.5 si hay 1 completa y 1 al 50%)
+    cuotasPagas: Math.round(cuotas.reduce((sum, c) => sum + ((c.abonado || 0) / c.valor), 0) * 10) / 10,
+    // Cuotas Pendientes: total - pagas proporcional
+    cuotasPendientes: Math.round((cuotas.length - cuotas.reduce((sum, c) => sum + ((c.abonado || 0) / c.valor), 0)) * 10) / 10,
     intereses: interesAcumulado,
     utilidadReal1: calcularUtilidad1(datosPrestamoOriginal.montoOriginal, datosPrestamoOriginal.saldoTotalOriginal, interesAcumulado),
     utilidadReal2: calcularUtilidad2(cuotasConPagos, datosPrestamoOriginal.montoOriginal, datosPrestamoOriginal.totalInteresOriginal, datosPrestamoOriginal.numeroCuotasOriginal, interesAcumulado),
