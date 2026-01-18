@@ -535,66 +535,135 @@ export const LoanInstallmentsManager = ({
     return <Chip label={config.label} color={config.color} size="small" icon={config.icon} />;
   };
 
+  const getRowBackground = (estado) => {
+    switch (estado) {
+      case 'pagado':
+        return 'rgba(76, 175, 80, 0.1)';
+      case 'parcial':
+        return 'rgba(255, 152, 0, 0.1)';
+      default:
+        return '#fff';
+    }
+  };
+
+  const headers = ['N°', 'Fecha', 'Valor', 'Abonado', 'Saldo', 'Estado', 'Acciones'];
+
   return (
     <Box>
       <Typography variant="h6" gutterBottom sx={{ mt: 3, mb: 2 }}>Cronograma de Cuotas</Typography>
-      <TableContainer component={Paper} variant="outlined">
-        <Table size="small">
-          <TableHead>
-            <TableRow sx={{ backgroundColor: 'primary.50' }}>
-              <TableCell><strong>N°</strong></TableCell>
-              <TableCell><strong>Fecha</strong></TableCell>
-              <TableCell align="right"><strong>Valor</strong></TableCell>
-              <TableCell align="right"><strong>Abonado</strong></TableCell>
-              <TableCell align="right"><strong>Saldo</strong></TableCell>
-              <TableCell align="center"><strong>Estado</strong></TableCell>
-              <TableCell align="center"><strong>Acciones</strong></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {cuotas.map((cuota, index) => (
-              <TableRow
-                key={index}
-                sx={{
-                  backgroundColor:
-                    cuota.estado_pago === 'pagado' ? 'rgba(76, 175, 80, 0.1)' :
-                    cuota.estado_pago === 'parcial' ? 'rgba(255, 152, 0, 0.1)' : 'inherit',
-                }}
-              >
-                <TableCell>{index + 1}</TableCell>
-                <TableCell>
-                  <Box display="flex" alignItems="center">
-                    {dayjs(cuota.fecha_pago).format('DD/MM/YYYY')}
-                    <Tooltip title="Editar fecha">
-                      <IconButton size="small" onClick={() => { setIndexSeleccionado(index); setDialogoFechaAbierto(true); }} sx={{ ml: 1 }}>
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                </TableCell>
-                <TableCell align="right">${formatMoney(cuota.valor)}</TableCell>
-                <TableCell align="right">${formatMoney(cuota.abonado || 0)}</TableCell>
-                <TableCell align="right">${formatMoney(cuota.saldo || cuota.valor)}</TableCell>
-                <TableCell align="center">{getEstadoChip(cuota.estado_pago)}</TableCell>
-                <TableCell align="center">
-                  <Box display="flex" gap={1} justifyContent="center">
-                    {cuota.estado_pago !== 'pagado' && (
-                      <Button size="small" variant="outlined" color="success" onClick={() => { setIndexSeleccionado(index); setDialogoPagoAbierto(true); }} startIcon={<PaymentIcon />}>
-                        Pagar
-                      </Button>
-                    )}
-                    {cuota.abonado > 0 && (
-                      <Button size="small" variant="outlined" color="error" onClick={() => { setIndexSeleccionado(index); setDialogoEliminarAbierto(true); }} startIcon={<CloseIcon />}>
-                        Eliminar
-                      </Button>
-                    )}
-                  </Box>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+
+      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+        {/* Header Grid */}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(7, 1fr)',
+            backgroundColor: 'primary.main',
+            color: 'white',
+          }}
+        >
+          {headers.map((header, idx) => (
+            <Box
+              key={idx}
+              sx={{
+                p: 1.5,
+                textAlign: 'center',
+                borderRight: idx < headers.length - 1 ? '1px solid rgba(255,255,255,0.2)' : 'none',
+              }}
+            >
+              <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '13px' }}>
+                {header}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+
+        {/* Body Grid */}
+        {cuotas.map((cuota, index) => (
+          <Box
+            key={index}
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(7, 1fr)',
+              backgroundColor: getRowBackground(cuota.estado_pago),
+              borderBottom: index < cuotas.length - 1 ? '1px solid #dee2e6' : 'none',
+              '&:hover': {
+                backgroundColor: cuota.estado_pago === 'pagado'
+                  ? 'rgba(76, 175, 80, 0.15)'
+                  : cuota.estado_pago === 'parcial'
+                    ? 'rgba(255, 152, 0, 0.15)'
+                    : 'rgba(0, 0, 0, 0.04)',
+              },
+            }}
+          >
+            {/* N° */}
+            <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{index + 1}</Typography>
+            </Box>
+
+            {/* Fecha */}
+            <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+              <Typography variant="body2">{dayjs(cuota.fecha_pago).format('DD/MM/YYYY')}</Typography>
+              <Tooltip title="Editar fecha">
+                <IconButton size="small" onClick={() => { setIndexSeleccionado(index); setDialogoFechaAbierto(true); }} sx={{ ml: 0.5 }}>
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+
+            {/* Valor */}
+            <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+              <Typography variant="body2">${formatMoney(cuota.valor)}</Typography>
+            </Box>
+
+            {/* Abonado */}
+            <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+              <Typography variant="body2" sx={{ color: cuota.abonado > 0 ? 'success.main' : 'inherit', fontWeight: cuota.abonado > 0 ? 'bold' : 'normal' }}>
+                ${formatMoney(cuota.abonado || 0)}
+              </Typography>
+            </Box>
+
+            {/* Saldo */}
+            <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+              <Typography variant="body2" sx={{ color: (cuota.saldo || cuota.valor) > 0 ? 'error.main' : 'success.main', fontWeight: 'bold' }}>
+                ${formatMoney(cuota.saldo || cuota.valor)}
+              </Typography>
+            </Box>
+
+            {/* Estado */}
+            <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+              {getEstadoChip(cuota.estado_pago)}
+            </Box>
+
+            {/* Acciones */}
+            <Box sx={{ p: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+              {cuota.estado_pago !== 'pagado' && (
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="success"
+                  onClick={() => { setIndexSeleccionado(index); setDialogoPagoAbierto(true); }}
+                  sx={{ minWidth: 'auto', px: 1, fontSize: '11px' }}
+                >
+                  <PaymentIcon fontSize="small" sx={{ mr: 0.5 }} />
+                  Pagar
+                </Button>
+              )}
+              {cuota.abonado > 0 && (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="error"
+                  onClick={() => { setIndexSeleccionado(index); setDialogoEliminarAbierto(true); }}
+                  sx={{ minWidth: 'auto', px: 1, fontSize: '11px' }}
+                >
+                  <CloseIcon fontSize="small" />
+                </Button>
+              )}
+            </Box>
+          </Box>
+        ))}
+      </Paper>
 
       <DialogoPagoFlexible
         open={dialogoPagoAbierto}
@@ -1090,31 +1159,38 @@ export const TabGestion = ({
 
   return (
     <Box>
-      {datosPrestamo && (
-        <Box sx={{ mb: 3 }}>
-          <TarjetaInformacionPrestamo datosPrestamo={datosPrestamo} />
-        </Box>
-      )}
-      {datosPrestamoOriginal.sinCronograma ? (
-        <PrestamoSinCronograma
-          datosPrestamoOriginal={datosPrestamoOriginal}
-          plazoEditableSinCronograma={plazoEditableSinCronograma}
-          setPlazoEditableSinCronograma={setPlazoEditableSinCronograma}
-          recalcularPrestamoSinCronograma={recalcularPrestamoSinCronograma}
-        />
-      ) : (
-        <PrestamoConCronograma
-          datosPrestamoOriginal={datosPrestamoOriginal}
-          resumenActual={resumenActual}
-          cuotas={cuotas}
-          cuotasCompletamentePagadas={cuotasCompletamentePagadas}
-          handleAplicarPago={handleAplicarPago}
-          handleCambiarFecha={handleCambiarFecha}
-          handleEliminarPago={handleEliminarPago}
-          iniciarProcesoAmpliacion={iniciarProcesoAmpliacion}
-          onAbrirCalculadora={onAbrirCalculadora}
-        />
-      )}
+      <Grid container spacing={2}>
+        {/* Información del Préstamo - size={4} */}
+        <Grid size={4}>
+          {datosPrestamo && (
+            <TarjetaInformacionPrestamo datosPrestamo={datosPrestamo} />
+          )}
+        </Grid>
+
+        {/* Cronograma de Cuotas - size={8} */}
+        <Grid size={8}>
+          {datosPrestamoOriginal.sinCronograma ? (
+            <PrestamoSinCronograma
+              datosPrestamoOriginal={datosPrestamoOriginal}
+              plazoEditableSinCronograma={plazoEditableSinCronograma}
+              setPlazoEditableSinCronograma={setPlazoEditableSinCronograma}
+              recalcularPrestamoSinCronograma={recalcularPrestamoSinCronograma}
+            />
+          ) : (
+            <PrestamoConCronograma
+              datosPrestamoOriginal={datosPrestamoOriginal}
+              resumenActual={resumenActual}
+              cuotas={cuotas}
+              cuotasCompletamentePagadas={cuotasCompletamentePagadas}
+              handleAplicarPago={handleAplicarPago}
+              handleCambiarFecha={handleCambiarFecha}
+              handleEliminarPago={handleEliminarPago}
+              iniciarProcesoAmpliacion={iniciarProcesoAmpliacion}
+              onAbrirCalculadora={onAbrirCalculadora}
+            />
+          )}
+        </Grid>
+      </Grid>
     </Box>
   );
 };

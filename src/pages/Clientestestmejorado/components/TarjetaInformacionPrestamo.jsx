@@ -17,7 +17,7 @@ const TarjetaInformacionPrestamo = ({ datosPrestamo }) => {
 
   const {
     estado = "Vigente",
-    numeroTarjeta = "#1",
+    numeroTarjeta = "1",
     nombreCliente = "Omaira Saul",
     dineroPrestado = 34000000,
     plazoPrestamo = 36,
@@ -37,188 +37,79 @@ const TarjetaInformacionPrestamo = ({ datosPrestamo }) => {
     utilidadReal3 = 5100000,
   } = datosPrestamo;
 
-  // Estilos comunes
-  const headerCellStyle = {
-    fontWeight: 'bold',
-    fontSize: '16px',
-    fontFamily: "'Open Sans', sans-serif",
-    backgroundColor: '#f8f9fa',
-    borderBottom: '1px solid #dee2e6',
-    width: '50%',
-  };
-
-  const valueCellStyle = {
-    textAlign: 'center',
-    fontSize: '16px',
-    fontFamily: "'Open Sans', sans-serif",
-    borderBottom: '1px solid #dee2e6',
-  };
-
-  const successCellStyle = {
-    ...valueCellStyle,
-    backgroundColor: '#198754',
-    color: 'white',
-  };
-
-  // Filas de la tabla
   const rows = [
-    {
-      label: 'Estado Credito',
-      value: estado,
-      valueStyle: {
-        ...valueCellStyle,
-        backgroundColor: '#FFFF00',
-        fontWeight: 'bold',
-      },
-    },
-    {
-      label: 'Numero de la tarjeta',
-      value: numeroTarjeta,
-      valueStyle: successCellStyle,
-      bold: true,
-    },
-    {
-      label: 'Nombre del cliente',
-      value: nombreCliente,
-      valueStyle: successCellStyle,
-      bold: true,
-    },
-    {
-      label: 'Dinero prestado',
-      value: `$${formatMoney(dineroPrestado)}`,
-      valueStyle: successCellStyle,
-      bold: true,
-    },
-    {
-      label: 'Plazo prestamo',
-      value: plazoPrestamo,
-      valueStyle: successCellStyle,
-      bold: true,
-    },
-    {
-      label: '% interes',
-      value: `${interes}%`,
-      valueStyle: successCellStyle,
-      bold: true,
-    },
-    {
-      label: 'Valor cuota',
-      value: `$${formatMoney(valorCuota)}`,
-      valueStyle: successCellStyle,
-      bold: true,
-    },
-    {
-      label: 'Fecha del prestamo',
-      value: dayjs(fechaPrestamo).format('YYYY-MM-DD'),
-      valueStyle: successCellStyle,
-      bold: true,
-    },
-    {
-      label: 'Abono Total + intereses',
-      value: `$${formatMoney(abonoTotalIntereses)}`,
-      valueStyle: valueCellStyle,
-    },
-    {
-      label: 'Abono Total',
-      value: `$${formatMoney(abonoTotal)}`,
-      valueStyle: valueCellStyle,
-    },
-    {
-      label: 'Saldo Total',
-      value: `$${formatMoney(saldoTotal)}`,
-      valueStyle: valueCellStyle,
-    },
-    {
-      label: 'Saldo A Inversion + Intereses',
-      value: `$${formatMoney(saldoInversionIntereses)}`,
-      valueStyle: valueCellStyle,
-    },
-    {
-      label: 'Intereses Pendientes',
-      value: `$${formatMoney(interesesPendientes)}`,
-      valueStyle: valueCellStyle,
-    },
-    {
-      label: 'Cuotas Pagas',
-      value: cuotasPagas,
-      valueStyle: valueCellStyle,
-    },
-    {
-      label: 'Cuotas Pendientes',
-      value: cuotasPendientes,
-      valueStyle: valueCellStyle,
-    },
-    {
-      label: 'Intereses',
-      value: `$${formatMoney(intereses)}`,
-      valueStyle: valueCellStyle,
-    },
-    {
-      label: 'Utilidad Real 1',
-      value: `$${formatMoney(utilidadReal1)}`,
-      valueStyle: valueCellStyle,
-    },
-    {
-      label: 'Utilidad Real 2',
-      value: `$${formatMoney(utilidadReal2)}`,
-      valueStyle: valueCellStyle,
-    },
-    {
-      label: 'Utilidad Real 3',
-      value: `$${formatMoney(utilidadReal3)}`,
-      valueStyle: valueCellStyle,
-    },
+    { label: 'Estado Credito', value: estado, isBold: true, isHighlight: true },
+    { label: 'Numero de la tarjeta', value: `# ${numeroTarjeta}`, isBold: true },
+    { label: 'Nombre del cliente', value: nombreCliente, isBold: true },
+    { label: 'Dinero prestado', value: formatMoney(dineroPrestado), isBold: true },
+    { label: 'Plazo prestamo', value: plazoPrestamo, isBold: true },
+    { label: '% interes', value: `${interes}%`, isBold: true },
+    { label: 'Valor cuota', value: formatMoney(valorCuota), isBold: true },
+    { label: 'Fecha del prestamo', value: dayjs(fechaPrestamo).format('YYYY-MM-DD'), isBold: true },
+    { label: 'Abono Total + intereses', value: formatMoney(abonoTotalIntereses), isBold: false },
+    { label: 'Abono Total', value: formatMoney(abonoTotal), isBold: false },
+    { label: 'Saldo Total', value: formatMoney(saldoTotal), isBold: false },
+    { label: 'Saldo A Inversion + Intereses', value: formatMoney(saldoInversionIntereses), isBold: false },
+    { label: 'Intereses Pendientes', value: formatMoney(interesesPendientes), isBold: false },
+    { label: 'Cuotas Pagas', value: cuotasPagas, isBold: false },
+    { label: 'Cuotas Pendientes', value: cuotasPendientes, isBold: false },
+    { label: 'Intereses', value: formatMoney(intereses), isBold: false },
+    { label: 'Utilidad Real 1', value: formatMoney(utilidadReal1), isBold: false },
+    { label: 'Utilidad Real 2', value: formatMoney(utilidadReal2), isBold: false },
+    { label: 'Utilidad Real 3', value: formatMoney(utilidadReal3), isBold: false },
   ];
 
   return (
-    <Box sx={{ maxWidth: 800, mx: 'auto' }}>
-      <Typography
-        variant="h5"
-        sx={{
-          mb: 2,
-          fontWeight: 'bold',
-          color: 'primary.main',
-          textAlign: 'center',
-        }}
-      >
-        Información del Préstamo
-      </Typography>
+    <Paper elevation={3} sx={{ borderRadius: 2, overflow: 'hidden', height: '100%' }}>
+      <Box sx={{ backgroundColor: 'primary.main', p: 1.5 }}>
+        <Typography
+          variant="h6"
+          sx={{
+            fontWeight: 'bold',
+            color: 'white',
+            textAlign: 'center',
+          }}
+        >
+          Información del Préstamo
+        </Typography>
+      </Box>
 
-      <TableContainer
-        component={Paper}
-        elevation={3}
-        sx={{
-          borderRadius: 2,
-          overflow: 'hidden',
-        }}
-      >
-        <Table sx={{ minWidth: 400 }}>
+      <TableContainer>
+        <Table size="small">
           <TableBody>
             {rows.map((row, index) => (
-              <TableRow
-                key={index}
-                sx={{
-                  '&:nth-of-type(odd)': {
-                    backgroundColor: 'rgba(0, 0, 0, 0.02)',
-                  },
-                }}
-              >
-                <TableCell component="th" scope="row" sx={headerCellStyle}>
+              <TableRow key={index}>
+                <TableCell
+                  component="th"
+                  scope="row"
+                  sx={{
+                    fontWeight: 'bold',
+                    fontSize: '13px',
+                    backgroundColor: '#f8f9fa',
+                    borderBottom: '1px solid #dee2e6',
+                    width: '50%',
+                    py: 1,
+                  }}
+                >
                   {row.label}
                 </TableCell>
-                <TableCell sx={row.valueStyle}>
-                  {row.bold ? (
-                    <strong>{row.value}</strong>
-                  ) : (
-                    row.value
-                  )}
+                <TableCell
+                  sx={{
+                    textAlign: 'center',
+                    fontSize: '13px',
+                    borderBottom: '1px solid #dee2e6',
+                    py: 1,
+                    backgroundColor: row.isHighlight ? '#FFFF00' : 'inherit',
+                  }}
+                >
+                  {row.isBold ? <strong>{row.value}</strong> : row.value}
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </TableContainer>
-    </Box>
+    </Paper>
   );
 };
 
