@@ -14,12 +14,14 @@ import {
 
 const useLoanManager = () => {
   const [config, setConfig] = useState({
-    montoPrestamo: '1000000',
-    porcentajeInteres: '10',
-    duracionPrestamo: '10',
-    tipoPrestamo: 'Mensual',
+    numeroTarjeta: '',
+    nombre: '',
+    montoPrestamo: '',
+    porcentajeInteres: '',
+    duracionPrestamo: '',
+    tipoPrestamo: '',
     fechaPrestamo: dayjs().format('YYYY-MM-DD'),
-    diaCobro: '1',
+    diaCobro: '',
     prestamoSinCronograma: false,
   });
 
@@ -111,6 +113,8 @@ const useLoanManager = () => {
         totalInteresOriginal: totalInteres,
         interesMensualOriginal: interesMensual,
         sinCronograma: true,
+        numeroTarjeta: config.numeroTarjeta || '',
+        nombreCliente: config.nombre || '',
       });
       actualizarResumen([], monto, tasa, numeroCuotas);
       agregarEvento('creacion', 'Préstamo Creado (Sin Cronograma)', `Monto: $${formatMoney(monto)}, Tasa: ${tasa}%, Plazo: ${numeroCuotas} meses`, monto);
@@ -135,6 +139,8 @@ const useLoanManager = () => {
         totalInteresOriginal: totalInteres,
         interesMensualOriginal: interesMensual,
         sinCronograma: false,
+        numeroTarjeta: config.numeroTarjeta || '',
+        nombreCliente: config.nombre || '',
       });
       actualizarResumen(nuevasCuotas, monto, tasa, numeroCuotas);
       agregarEvento('creacion', 'Préstamo Creado', `Monto: $${formatMoney(monto)}, Tasa: ${tasa}%, ${numeroCuotas} cuotas de $${formatMoney(valorCuota)}`, monto);
@@ -250,6 +256,8 @@ const useLoanManager = () => {
       saldoTotalOriginal: saldoTotal,
       totalInteresOriginal: totalInteres,
       interesMensualOriginal: (nuevoCapitalTotal * nuevaTasa) / 100,
+      numeroTarjeta: datosPrestamoOriginal.numeroTarjeta || '',
+      nombreCliente: datosPrestamoOriginal.nombreCliente || '',
     });
     actualizarResumen(cronogramaConSaldo, nuevoCapitalTotal, nuevaTasa, numCuotasNuevas, saldoFavor);
     setConfig(prev => ({
@@ -285,8 +293,8 @@ const useLoanManager = () => {
 
   const datosPrestamo = datosPrestamoOriginal ? {
     estado: "Crédito Vigente",
-    numeroTarjeta: "#1",
-    nombreCliente: "Omaira Saul",
+    numeroTarjeta: datosPrestamoOriginal.numeroTarjeta || "",
+    nombreCliente: datosPrestamoOriginal.nombreCliente || "",
     dineroPrestado: datosPrestamoOriginal.montoOriginal,
     plazoPrestamo: datosPrestamoOriginal.numeroCuotasOriginal,
     interes: datosPrestamoOriginal.tasaOriginal,
