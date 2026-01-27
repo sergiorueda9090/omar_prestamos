@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -11,8 +11,21 @@ import {
   FormControlLabel,
   Paper,
   Divider,
+  Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Collapse,
 } from '@mui/material';
-import { Calculate as CalculateIcon } from '@mui/icons-material';
+import {
+  Calculate as CalculateIcon,
+  CalendarMonth as CalendarIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+} from '@mui/icons-material';
 import dayjs from 'dayjs';
 
 const TabConfiguracion = ({
@@ -24,6 +37,7 @@ const TabConfiguracion = ({
 }) => {
   const [errors, setErrors] = useState({});
   const [porcentajeInteresCheck, setPorcentajeInteresCheck] = useState(true);
+  const [mostrarFechasCobro, setMostrarFechasCobro] = useState(true);
 
   // Valores locales para campos calculados
   const [interesMensual, setInteresMensual] = useState('');
@@ -31,6 +45,87 @@ const TabConfiguracion = ({
   const [valorCuota, setValorCuota] = useState('');
   const [totalInteresPagar, setTotalInteresPagar] = useState('');
   const [saldoTotalPagar, setSaldoTotalPagar] = useState('');
+
+  // Función interna para calcular número de cuotas (sin setState)
+  const calcularNumeroCuotasPorDuracionInterno = (tipoPrestamo, duracionEnMeses) => {
+    const diasEnMes = 30;
+    let numCuotas = 0;
+
+    switch (tipoPrestamo?.toLowerCase()) {
+      case 'mensual':
+        numCuotas = parseInt(duracionEnMeses) || 0;
+        break;
+      case 'quincenal':
+        numCuotas = Math.floor(((parseInt(duracionEnMeses) || 0) * diasEnMes) / 15);
+        break;
+      case 'semanal':
+        numCuotas = Math.floor(((parseInt(duracionEnMeses) || 0) * diasEnMes) / 7);
+        break;
+      case 'diario':
+        numCuotas = (parseInt(duracionEnMeses) || 0) * diasEnMes;
+        break;
+      default:
+        numCuotas = 0;
+    }
+
+    return numCuotas;
+  };
+
+  // Función para calcular las fechas de cobro
+  const calcularFechasCobro = (fechaInicial, numCuotas, tipoPrestamo) => {
+    if (!fechaInicial || !numCuotas || numCuotas <= 0 || !tipoPrestamo) {
+      return [];
+    }
+
+    const fechas = [];
+    let fechaActual = dayjs(fechaInicial);
+
+    for (let i = 0; i < numCuotas; i++) {
+      // Para la primera cuota, usar la fecha inicial directamente
+      if (i === 0) {
+        fechas.push({
+          numero: i + 1,
+          fecha: fechaActual.format('YYYY-MM-DD'),
+          fechaFormateada: fechaActual.format('DD/MM/YYYY'),
+          diaSemana: fechaActual.format('dddd'),
+        });
+      } else {
+        // Para las siguientes cuotas, calcular según el tipo
+        switch (tipoPrestamo.toLowerCase()) {
+          case 'mensual':
+            // Mantener el mismo día del mes
+            fechaActual = dayjs(fechaInicial).add(i, 'month');
+            break;
+          case 'quincenal':
+            fechaActual = dayjs(fechaInicial).add(i * 15, 'day');
+            break;
+          case 'semanal':
+            fechaActual = dayjs(fechaInicial).add(i * 7, 'day');
+            break;
+          case 'diario':
+            fechaActual = dayjs(fechaInicial).add(i, 'day');
+            break;
+          default:
+            fechaActual = dayjs(fechaInicial).add(i, 'month');
+        }
+
+        fechas.push({
+          numero: i + 1,
+          fecha: fechaActual.format('YYYY-MM-DD'),
+          fechaFormateada: fechaActual.format('DD/MM/YYYY'),
+          diaSemana: fechaActual.format('dddd'),
+        });
+      }
+    }
+
+    return fechas;
+  };
+
+  // Calcular fechas de cobro con useMemo para optimización
+  const fechasCobro = useMemo(() => {
+    const numCuotasCalculadas = numeroCuotas || calcularNumeroCuotasPorDuracionInterno(config.tipoPrestamo, config.duracionPrestamo);
+    return calcularFechasCobro(config.diaCobro, numCuotasCalculadas, config.tipoPrestamo);
+  }, [config.diaCobro, config.tipoPrestamo, config.duracionPrestamo, numeroCuotas]);
 
   const handleCheckboxChange = (event) => {
     setPorcentajeInteresCheck(event.target.checked);
@@ -450,6 +545,136 @@ const TabConfiguracion = ({
               }
             />
           </Grid>
+
+          {/* Vista previa de fechas de cobro */}
+          {!config.prestamoSinCronograma && fechasCobro.length > 0 && (
+            <Grid size={12}>
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 2,
+                  backgroundColor: 'rgba(25, 118, 210, 0.05)',
+                  border: '1px solid',
+                  borderColor: 'primary.light',
+                }}
+              >
+                <Box
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="space-between"
+                  sx={{ cursor: 'pointer' }}
+                  onClick={() => setMostrarFechasCobro(!mostrarFechasCobro)}
+                >
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <CalendarIcon color="primary" />
+                    <Typography variant="subtitle1" color="primary" fontWeight="bold">
+                      Vista Previa de Fechas de Cobro
+                    </Typography>
+                    <Chip
+                      label={`${fechasCobro.length} cuotas`}
+                      size="small"
+                      color="primary"
+                      variant="outlined"
+                    />
+                  </Box>
+                  {mostrarFechasCobro ? <ExpandLessIcon color="primary" /> : <ExpandMoreIcon color="primary" />}
+                </Box>
+
+                <Collapse in={mostrarFechasCobro}>
+                  <Box sx={{ mt: 2 }}>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      <strong>Tipo:</strong> {config.tipoPrestamo} |
+                      <strong> Primer cobro:</strong> {fechasCobro[0]?.fechaFormateada} |
+                      <strong> Último cobro:</strong> {fechasCobro[fechasCobro.length - 1]?.fechaFormateada}
+                    </Alert>
+
+                    <TableContainer sx={{ maxHeight: 300 }}>
+                      <Table size="small" stickyHeader>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
+                              Cuota
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
+                              Fecha de Cobro
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
+                              Día
+                            </TableCell>
+                            {valorCuota && (
+                              <TableCell align="right" sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
+                                Valor
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {fechasCobro.map((fecha, index) => (
+                            <TableRow
+                              key={index}
+                              sx={{
+                                backgroundColor: index % 2 === 0 ? 'grey.50' : 'white',
+                                '&:hover': { backgroundColor: 'primary.50' }
+                              }}
+                            >
+                              <TableCell>
+                                <Chip
+                                  label={`#${fecha.numero}`}
+                                  size="small"
+                                  color="primary"
+                                  variant="outlined"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" fontWeight="medium">
+                                  {fecha.fechaFormateada}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                                  {fecha.diaSemana}
+                                </Typography>
+                              </TableCell>
+                              {valorCuota && (
+                                <TableCell align="right">
+                                  <Typography variant="body2" color="success.main" fontWeight="bold">
+                                    ${valorCuota}
+                                  </Typography>
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+
+                    {/* Resumen rápido con chips */}
+                    <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      <Chip
+                        label={`Total cuotas: ${fechasCobro.length}`}
+                        color="primary"
+                        size="small"
+                      />
+                      {saldoTotalPagar && (
+                        <Chip
+                          label={`Total a pagar: $${saldoTotalPagar}`}
+                          color="success"
+                          size="small"
+                        />
+                      )}
+                      {totalInteresPagar && (
+                        <Chip
+                          label={`Intereses: $${totalInteresPagar}`}
+                          color="warning"
+                          size="small"
+                        />
+                      )}
+                    </Box>
+                  </Box>
+                </Collapse>
+              </Paper>
+            </Grid>
+          )}
 
           {/* Botón Generar */}
           <Grid size={12}>

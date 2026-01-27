@@ -32,6 +32,7 @@ const useLoanManager = () => {
   const [plazoEditableSinCronograma, setPlazoEditableSinCronograma] = useState('');
   const [historial, setHistorial] = useState([]);
   const [interesAcumulado, setInteresAcumulado] = useState(0);
+  const [totalPagadoCuotasSinCronograma, setTotalPagadoCuotasSinCronograma] = useState(0);
 
   const [dialogos, setDialogos] = useState({
     liquidacion: false,
@@ -99,15 +100,18 @@ const useLoanManager = () => {
     }
 
     const numeroCuotas = calcularNumeroCuotasPorDuracion(duracion, config.tipoPrestamo);
-    const { valorCuota, saldoTotal, totalInteres, interesMensual } = calcularInteresSimple(monto, tasa, numeroCuotas);
+    // Pasar duracion (meses) como cuarto parámetro para calcular el interés correctamente
+    const { valorCuota, saldoTotal, totalInteres, interesMensual } = calcularInteresSimple(monto, tasa, numeroCuotas, duracion);
 
     if (config.prestamoSinCronograma) {
       setCuotas([]);
-      setPlazoEditableSinCronograma(numeroCuotas.toString());
+      setPlazoEditableSinCronograma(duracion.toString());
       setDatosPrestamoOriginal({
         montoOriginal: monto,
         tasaOriginal: tasa,
         numeroCuotasOriginal: numeroCuotas,
+        duracionMesesOriginal: duracion, // Guardar duración en meses
+        tipoPrestamo: config.tipoPrestamo,
         valorCuotaOriginal: valorCuota,
         saldoTotalOriginal: saldoTotal,
         totalInteresOriginal: totalInteres,
@@ -117,7 +121,7 @@ const useLoanManager = () => {
         nombreCliente: config.nombre || '',
       });
       actualizarResumen([], monto, tasa, numeroCuotas);
-      agregarEvento('creacion', 'Préstamo Creado (Sin Cronograma)', `Monto: $${formatMoney(monto)}, Tasa: ${tasa}%, Plazo: ${numeroCuotas} meses`, monto);
+      agregarEvento('creacion', 'Préstamo Creado (Sin Cronograma)', `Monto: $${formatMoney(monto)}, Tasa: ${tasa}%, Plazo: ${duracion} meses (${numeroCuotas} cuotas ${config.tipoPrestamo})`, monto);
     } else {
       const fechas = calcularFechasCobro(config.fechaPrestamo, numeroCuotas, config.tipoPrestamo, config.diaCobro);
       const nuevasCuotas = fechas.map((fecha, index) => ({
@@ -134,6 +138,8 @@ const useLoanManager = () => {
         montoOriginal: monto,
         tasaOriginal: tasa,
         numeroCuotasOriginal: numeroCuotas,
+        duracionMesesOriginal: duracion, // Guardar duración en meses
+        tipoPrestamo: config.tipoPrestamo,
         valorCuotaOriginal: valorCuota,
         saldoTotalOriginal: saldoTotal,
         totalInteresOriginal: totalInteres,
@@ -233,7 +239,8 @@ const useLoanManager = () => {
     const { saldoFavor } = datosLiquidacion;
     const capitalVigente = datosPrestamoOriginal.montoOriginal;
     const nuevoCapitalTotal = capitalVigente + montoAdicional;
-    const { valorCuota, saldoTotal, totalInteres } = calcularInteresSimple(nuevoCapitalTotal, nuevaTasa, numCuotasNuevas);
+    // Para ampliaciones, asumimos que las cuotas nuevas son mensuales (duracion = numCuotas)
+    const { valorCuota, saldoTotal, totalInteres } = calcularInteresSimple(nuevoCapitalTotal, nuevaTasa, numCuotasNuevas, numCuotasNuevas);
     const primeraCuotaPendiente = cuotas.find(c => c.estado_pago !== 'pagado');
     const fechaInicio = primeraCuotaPendiente ? dayjs(primeraCuotaPendiente.fecha_pago) : dayjs().add(1, 'month');
     const nuevasFechas = calcularFechasCobro(fechaInicio, numCuotasNuevas, config.tipoPrestamo, config.diaCobro);
@@ -252,10 +259,13 @@ const useLoanManager = () => {
       montoOriginal: nuevoCapitalTotal,
       tasaOriginal: nuevaTasa,
       numeroCuotasOriginal: numCuotasNuevas,
+      duracionMesesOriginal: numCuotasNuevas, // Para ampliaciones, asumimos mensual
+      tipoPrestamo: config.tipoPrestamo,
       valorCuotaOriginal: valorCuota,
       saldoTotalOriginal: saldoTotal,
       totalInteresOriginal: totalInteres,
       interesMensualOriginal: (nuevoCapitalTotal * nuevaTasa) / 100,
+      sinCronograma: false,
       numeroTarjeta: datosPrestamoOriginal.numeroTarjeta || '',
       nombreCliente: datosPrestamoOriginal.nombreCliente || '',
     });
@@ -288,11 +298,44 @@ const useLoanManager = () => {
     setParametrosAmpliacion(null);
   };
 
+  // Funciones para préstamos sin cronograma
+  const handlePagoCuotaSinCronograma = (monto, tipoPago, datos) => {
+    setTotalPagadoCuotasSinCronograma(prev => prev + monto);
+
+    const cuotasEquivalentes = datosPrestamoOriginal?.valorCuotaOriginal
+      ? (monto / datosPrestamoOriginal.valorCuotaOriginal).toFixed(2)
+      : 0;
+
+    agregarEvento(
+      'pago',
+      'Pago de Cuota (Sin Cronograma)',
+      `Pago de $${formatMoney(monto)} (${cuotasEquivalentes} cuotas equivalentes). Fecha: ${dayjs(datos.fechaPago).format('DD/MM/YYYY')}`,
+      monto
+    );
+  };
+
+  const handlePagoInteresSinCronograma = (monto, datos) => {
+    setInteresAcumulado(prev => prev + monto);
+    agregarEvento(
+      'pago',
+      'Pago de Interés (Sin Cronograma)',
+      `Pago de interés: $${formatMoney(monto)}. Fecha: ${dayjs(datos.fechaPago).format('DD/MM/YYYY')}${datos.descripcion ? `. ${datos.descripcion}` : ''}`,
+      monto
+    );
+  };
+
   const cuotasConPagos = cuotas.filter(c => c.abonado > 0);
   const cuotasCompletamentePagadas = cuotas.filter(c => c.estado_pago === 'pagado');
 
+  // Calcular datos según si es préstamo con o sin cronograma
+  const esSinCronograma = datosPrestamoOriginal?.sinCronograma;
+  const totalPagadoEfectivo = esSinCronograma ? totalPagadoCuotasSinCronograma : (resumenActual.totalPagado || 0);
+  const saldoTotalEfectivo = esSinCronograma
+    ? Math.max(0, (datosPrestamoOriginal?.saldoTotalOriginal || 0) - totalPagadoCuotasSinCronograma)
+    : cuotas.reduce((sum, c) => sum + (c.saldo ?? c.valor), 0);
+
   const datosPrestamo = datosPrestamoOriginal ? {
-    estado: "Crédito Vigente",
+    estado: saldoTotalEfectivo <= 0 ? "Crédito Pagado" : "Crédito Vigente",
     numeroTarjeta: datosPrestamoOriginal.numeroTarjeta || "",
     nombreCliente: datosPrestamoOriginal.nombreCliente || "",
     dineroPrestado: datosPrestamoOriginal.montoOriginal,
@@ -300,22 +343,30 @@ const useLoanManager = () => {
     interes: datosPrestamoOriginal.tasaOriginal,
     valorCuota: datosPrestamoOriginal.valorCuotaOriginal,
     fechaPrestamo: config.fechaPrestamo,
-    abonoTotalIntereses: (resumenActual.totalPagado || 0) + interesAcumulado,
-    abonoTotal: resumenActual.totalPagado || 0,
+    abonoTotalIntereses: totalPagadoEfectivo + interesAcumulado,
+    abonoTotal: totalPagadoEfectivo,
     // Saldo Total: se reduce con pagos de cuotas y abonos parciales (no incluye intereses)
-    saldoTotal: cuotas.reduce((sum, c) => sum + (c.saldo ?? c.valor), 0),
+    saldoTotal: saldoTotalEfectivo,
     // Saldo A Inversion: empieza con el dinero prestado, se resta con pagos, mínimo 0
-    saldoInversionIntereses: Math.max(0, datosPrestamoOriginal.montoOriginal - (resumenActual.totalPagado || 0) - interesAcumulado),
+    saldoInversionIntereses: Math.max(0, datosPrestamoOriginal.montoOriginal - totalPagadoEfectivo - interesAcumulado),
     // Intereses Pendientes: solo disminuye cuando Abono Total recupera el dinero prestado
-    interesesPendientes: datosPrestamoOriginal.totalInteresOriginal - Math.max(0, (resumenActual.totalPagado || 0) - datosPrestamoOriginal.montoOriginal),
+    interesesPendientes: datosPrestamoOriginal.totalInteresOriginal - Math.max(0, totalPagadoEfectivo - datosPrestamoOriginal.montoOriginal),
     // Cuotas Pagas: proporcional (ej: 1.5 si hay 1 completa y 1 al 50%)
-    cuotasPagas: Math.round(cuotas.reduce((sum, c) => sum + ((c.abonado || 0) / c.valor), 0) * 10) / 10,
+    cuotasPagas: esSinCronograma
+      ? Math.round((totalPagadoCuotasSinCronograma / datosPrestamoOriginal.valorCuotaOriginal) * 10) / 10
+      : Math.round(cuotas.reduce((sum, c) => sum + ((c.abonado || 0) / c.valor), 0) * 10) / 10,
     // Cuotas Pendientes: total - pagas proporcional
-    cuotasPendientes: Math.round((cuotas.length - cuotas.reduce((sum, c) => sum + ((c.abonado || 0) / c.valor), 0)) * 10) / 10,
+    cuotasPendientes: esSinCronograma
+      ? Math.round((datosPrestamoOriginal.numeroCuotasOriginal - (totalPagadoCuotasSinCronograma / datosPrestamoOriginal.valorCuotaOriginal)) * 10) / 10
+      : Math.round((cuotas.length - cuotas.reduce((sum, c) => sum + ((c.abonado || 0) / c.valor), 0)) * 10) / 10,
     intereses: interesAcumulado,
     utilidadReal1: calcularUtilidad1(datosPrestamoOriginal.montoOriginal, datosPrestamoOriginal.saldoTotalOriginal, interesAcumulado),
-    utilidadReal2: calcularUtilidad2(cuotasConPagos, datosPrestamoOriginal.montoOriginal, datosPrestamoOriginal.totalInteresOriginal, datosPrestamoOriginal.numeroCuotasOriginal, interesAcumulado),
-    utilidadReal3: calcularUtilidad3(cuotasConPagos, datosPrestamoOriginal.montoOriginal, interesAcumulado),
+    utilidadReal2: esSinCronograma
+      ? calcularUtilidad2([{ abonado: totalPagadoCuotasSinCronograma }], datosPrestamoOriginal.montoOriginal, datosPrestamoOriginal.totalInteresOriginal, datosPrestamoOriginal.numeroCuotasOriginal, interesAcumulado)
+      : calcularUtilidad2(cuotasConPagos, datosPrestamoOriginal.montoOriginal, datosPrestamoOriginal.totalInteresOriginal, datosPrestamoOriginal.numeroCuotasOriginal, interesAcumulado),
+    utilidadReal3: esSinCronograma
+      ? calcularUtilidad3([{ abonado: totalPagadoCuotasSinCronograma }], datosPrestamoOriginal.montoOriginal, interesAcumulado)
+      : calcularUtilidad3(cuotasConPagos, datosPrestamoOriginal.montoOriginal, interesAcumulado),
   } : null;
 
   return {
@@ -345,6 +396,10 @@ const useLoanManager = () => {
     iniciarProcesoAmpliacion,
     confirmarLiquidacionYAmpliar,
     handleConfirmarPagoCalculado,
+    // Funciones y estados para préstamos sin cronograma
+    totalPagadoCuotasSinCronograma,
+    handlePagoCuotaSinCronograma,
+    handlePagoInteresSinCronograma,
   };
 };
 

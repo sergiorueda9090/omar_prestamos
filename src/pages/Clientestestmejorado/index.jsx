@@ -54,6 +54,10 @@ const ClientesTest = () => {
     iniciarProcesoAmpliacion,
     confirmarLiquidacionYAmpliar,
     handleConfirmarPagoCalculado,
+    // Funciones y estados para préstamos sin cronograma
+    totalPagadoCuotasSinCronograma,
+    handlePagoCuotaSinCronograma,
+    handlePagoInteresSinCronograma,
   } = useLoanManager();
 
   const handleGenerarPlan = () => {
@@ -129,6 +133,9 @@ const ClientesTest = () => {
             handleEliminarPago={handleEliminarPago}
             iniciarProcesoAmpliacion={iniciarProcesoAmpliacion}
             onAbrirCalculadora={() => setDialogos(prev => ({ ...prev, calcularPago: true }))}
+            totalPagadoCuotasSinCronograma={totalPagadoCuotasSinCronograma}
+            onPagoCuotaSinCronograma={handlePagoCuotaSinCronograma}
+            onPagoInteresSinCronograma={handlePagoInteresSinCronograma}
           />
         )}
 

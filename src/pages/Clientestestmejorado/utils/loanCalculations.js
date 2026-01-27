@@ -24,10 +24,16 @@ export const formatMoney = (value) => {
 
 /**
  * Calcula interés simple sobre un capital
+ * @param {number} capital - Monto del préstamo
+ * @param {number} tasaMensual - Tasa de interés mensual (%)
+ * @param {number} numeroCuotas - Número de cuotas a pagar
+ * @param {number} duracionMeses - Duración en meses (opcional, si no se pasa usa numeroCuotas)
  */
-export const calcularInteresSimple = (capital, tasaMensual, numeroCuotas) => {
+export const calcularInteresSimple = (capital, tasaMensual, numeroCuotas, duracionMeses = null) => {
+  // El interés se calcula sobre los MESES, no sobre el número de cuotas
+  const mesesParaInteres = duracionMeses !== null ? duracionMeses : numeroCuotas;
   const interesMensual = capital * (tasaMensual / 100);
-  const totalInteres = interesMensual * numeroCuotas;
+  const totalInteres = interesMensual * mesesParaInteres;
   const valorCuota = (capital + totalInteres) / numeroCuotas;
   const saldoTotal = capital + totalInteres;
 
@@ -161,8 +167,12 @@ export const calcularPorcentajeCapitalRecuperado = (cuotasPagadas, montoOriginal
 
 /**
  * Calcula el interés de una cuota individual
+ * @param {number} montoOriginal - Monto del préstamo
+ * @param {number} tasaMensual - Tasa de interés mensual (%)
+ * @param {number} numeroCuotas - Número total de cuotas
+ * @param {number} duracionMeses - Duración en meses (opcional)
  */
-export const calcularInteresCuota = (montoOriginal, tasaMensual, numeroCuotas) => {
-  const { totalInteres } = calcularInteresSimple(montoOriginal, tasaMensual, numeroCuotas);
+export const calcularInteresCuota = (montoOriginal, tasaMensual, numeroCuotas, duracionMeses = null) => {
+  const { totalInteres } = calcularInteresSimple(montoOriginal, tasaMensual, numeroCuotas, duracionMeses);
   return totalInteres / numeroCuotas;
 };

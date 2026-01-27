@@ -52,6 +52,8 @@ import {
   calcularInteresCuota,
 } from '../utils/loanCalculations';
 import TarjetaInformacionPrestamo from './TarjetaInformacionPrestamo';
+import BotonesPagoRapido from './BotonesPagoRapido';
+import BotonesPagoSinCronograma, { DialogoConfirmarCambioPlazo } from './BotonesPagoSinCronograma';
 
 // ============================================================================
 // DIÁLOGO: CONFIRMAR ELIMINAR PAGO
@@ -393,7 +395,8 @@ export const DialogoCalcularPagoSaldo = ({
       return;
     }
 
-    const { saldoTotal, totalInteres } = calcularInteresSimple(prestado, interes || 0, plazo || 1);
+    // plazo es en meses, igual que cuotas para este cálculo
+    const { saldoTotal, totalInteres } = calcularInteresSimple(prestado, interes || 0, plazo || 1, plazo || 1);
     const saldoFinal = saldoTotal - (abono || 0);
 
     setSaldoCalculado({
@@ -513,14 +516,9 @@ export const DialogoCalcularPagoSaldo = ({
 
 export const LoanInstallmentsManager = ({
   cuotas,
-  onAplicarPago,
   onCambiarFecha,
   onEliminarPago,
-  montoOriginal,
-  tasaMensual,
-  numeroCuotas
 }) => {
-  const [dialogoPagoAbierto, setDialogoPagoAbierto] = useState(false);
   const [dialogoFechaAbierto, setDialogoFechaAbierto] = useState(false);
   const [dialogoEliminarAbierto, setDialogoEliminarAbierto] = useState(false);
   const [indexSeleccionado, setIndexSeleccionado] = useState(0);
@@ -637,18 +635,6 @@ export const LoanInstallmentsManager = ({
 
             {/* Acciones */}
             <Box sx={{ p: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-              {cuota.estado_pago !== 'pagado' && (
-                <Button
-                  size="small"
-                  variant="contained"
-                  color="success"
-                  onClick={() => { setIndexSeleccionado(index); setDialogoPagoAbierto(true); }}
-                  sx={{ minWidth: 'auto', px: 1, fontSize: '11px' }}
-                >
-                  <PaymentIcon fontSize="small" sx={{ mr: 0.5 }} />
-                  Pagar
-                </Button>
-              )}
               {cuota.abonado > 0 && (
                 <Button
                   size="small"
@@ -656,6 +642,7 @@ export const LoanInstallmentsManager = ({
                   color="error"
                   onClick={() => { setIndexSeleccionado(index); setDialogoEliminarAbierto(true); }}
                   sx={{ minWidth: 'auto', px: 1, fontSize: '11px' }}
+                  title="Eliminar pago"
                 >
                   <CloseIcon fontSize="small" />
                 </Button>
@@ -665,16 +652,6 @@ export const LoanInstallmentsManager = ({
         ))}
       </Paper>
 
-      <DialogoPagoFlexible
-        open={dialogoPagoAbierto}
-        onClose={() => setDialogoPagoAbierto(false)}
-        cuotas={cuotas}
-        indexInicial={indexSeleccionado}
-        montoOriginal={montoOriginal}
-        tasaMensual={tasaMensual}
-        numeroCuotas={numeroCuotas}
-        onConfirmarPago={onAplicarPago}
-      />
       <DialogoEditarFecha
         open={dialogoFechaAbierto}
         onClose={() => setDialogoFechaAbierto(false)}
@@ -710,9 +687,10 @@ export const PagoAnticipado = ({
       return;
     }
 
-    const { totalInteres, saldoTotal, valorCuota } = calcularInteresSimple(montoOriginal, tasaOriginal, meses);
+    // Para pago anticipado, meses = cuotas (se paga mensual)
+    const { totalInteres, saldoTotal, valorCuota } = calcularInteresSimple(montoOriginal, tasaOriginal, meses, meses);
     const ahorroInteres = meses < numeroCuotasOriginal
-      ? calcularInteresSimple(montoOriginal, tasaOriginal, numeroCuotasOriginal).totalInteres - totalInteres
+      ? calcularInteresSimple(montoOriginal, tasaOriginal, numeroCuotasOriginal, numeroCuotasOriginal).totalInteres - totalInteres
       : 0;
 
     setCalculoPago({ meses, totalInteres, totalAPagar: saldoTotal, valorCuota, ahorro: ahorroInteres });
@@ -853,10 +831,14 @@ export const LiquidacionDialog = ({
   useEffect(() => {
     if (open && prestamoActual) {
       const totalPagado = cuotasConPagos.reduce((sum, c) => sum + c.abonado, 0);
+      // Usar duración en meses si está disponible, sino usar número de cuotas
+      const numCuotas = cuotasConPagos.length || 1;
+      const duracionMeses = prestamoActual.duracionMesesOriginal || numCuotas;
       const { totalInteres } = calcularInteresSimple(
         prestamoActual.montoOriginal,
         prestamoActual.tasaOriginal,
-        cuotasConPagos.length || 1
+        numCuotas,
+        duracionMeses
       );
       const saldoFavor = Math.max(0, totalPagado - prestamoActual.montoOriginal - totalInteres);
 
@@ -1020,13 +1002,35 @@ export const PrestamoSinCronograma = ({
   plazoEditableSinCronograma,
   setPlazoEditableSinCronograma,
   recalcularPrestamoSinCronograma,
+  totalPagadoCuotas,
+  interesAcumulado,
+  onPagoCuota,
+  onPagoInteres,
 }) => {
+  const [dialogoConfirmarPlazoAbierto, setDialogoConfirmarPlazoAbierto] = useState(false);
+  const [plazoTemporal, setPlazoTemporal] = useState('');
+
   const handlePlazoChange = (e) => {
-    setPlazoEditableSinCronograma(e.target.value);
-    if (e.target.value && parseInt(e.target.value) > 0) {
-      recalcularPrestamoSinCronograma(e.target.value);
+    const nuevoValor = e.target.value;
+    if (nuevoValor && parseInt(nuevoValor) > 0 && nuevoValor !== plazoEditableSinCronograma) {
+      setPlazoTemporal(nuevoValor);
+      setDialogoConfirmarPlazoAbierto(true);
     }
   };
+
+  const handleConfirmarCambioPlazo = (nuevoPlazo) => {
+    setPlazoEditableSinCronograma(nuevoPlazo);
+    recalcularPrestamoSinCronograma(nuevoPlazo);
+    setPlazoTemporal('');
+  };
+
+  const handleCancelarCambioPlazo = () => {
+    setPlazoTemporal('');
+    setDialogoConfirmarPlazoAbierto(false);
+  };
+
+  // Calcular saldo pendiente
+  const saldoPendiente = (datosPrestamoOriginal?.saldoTotalOriginal || 0) - (totalPagadoCuotas || 0);
 
   return (
     <>
@@ -1034,6 +1038,15 @@ export const PrestamoSinCronograma = ({
         <strong>Préstamo sin cronograma de cuotas</strong><br />
         Puede ajustar el plazo de pago según las necesidades del cliente.
       </Alert>
+
+      {/* Botones de Pago Rápido */}
+      <BotonesPagoSinCronograma
+        datosPrestamoOriginal={datosPrestamoOriginal}
+        totalPagadoCuotas={totalPagadoCuotas || 0}
+        interesAcumulado={interesAcumulado || 0}
+        onPagoCuota={onPagoCuota}
+        onPagoInteres={onPagoInteres}
+      />
 
       <Card sx={{ mb: 3, backgroundColor: 'info.50' }}>
         <CardContent>
@@ -1056,7 +1069,7 @@ export const PrestamoSinCronograma = ({
                 value={plazoEditableSinCronograma}
                 onChange={handlePlazoChange}
                 inputProps={{ min: '1' }}
-                helperText="Cambie el plazo para recalcular"
+                helperText="Cambie el plazo para recalcular (requiere confirmación)"
               />
             </Grid>
             <Grid item xs={12} md={4}>
@@ -1075,10 +1088,49 @@ export const PrestamoSinCronograma = ({
         </CardContent>
       </Card>
 
+      {/* Resumen de Pagos */}
+      <Card sx={{ mb: 3, backgroundColor: 'success.50' }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom color="success.main">Resumen de Pagos</Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={6} md={3}>
+              <Typography variant="body2" color="text.secondary">Pagado en Cuotas</Typography>
+              <Typography variant="h6">${formatMoney(totalPagadoCuotas || 0)}</Typography>
+            </Grid>
+            <Grid item xs={6} md={3}>
+              <Typography variant="body2" color="text.secondary">Intereses Pagados</Typography>
+              <Typography variant="h6">${formatMoney(interesAcumulado || 0)}</Typography>
+            </Grid>
+            <Grid item xs={6} md={3}>
+              <Typography variant="body2" color="text.secondary">Total Pagado</Typography>
+              <Typography variant="h6" color="success.main">${formatMoney((totalPagadoCuotas || 0) + (interesAcumulado || 0))}</Typography>
+            </Grid>
+            <Grid item xs={6} md={3}>
+              <Typography variant="body2" color="text.secondary">Saldo Pendiente</Typography>
+              <Typography variant="h6" color={saldoPendiente > 0 ? 'error.main' : 'success.main'}>
+                ${formatMoney(Math.max(0, saldoPendiente))}
+              </Typography>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
       <PagoAnticipado
         montoOriginal={datosPrestamoOriginal.montoOriginal}
         tasaOriginal={datosPrestamoOriginal.tasaOriginal}
         numeroCuotasOriginal={datosPrestamoOriginal.numeroCuotasOriginal}
+      />
+
+      {/* Diálogo de confirmación de cambio de plazo */}
+      <DialogoConfirmarCambioPlazo
+        open={dialogoConfirmarPlazoAbierto}
+        onClose={handleCancelarCambioPlazo}
+        plazoActual={plazoEditableSinCronograma}
+        plazoNuevo={plazoTemporal}
+        datosPrestamoOriginal={datosPrestamoOriginal}
+        totalPagadoCuotas={totalPagadoCuotas || 0}
+        interesAcumulado={interesAcumulado || 0}
+        onConfirmar={handleConfirmarCambioPlazo}
       />
     </>
   );
@@ -1101,14 +1153,17 @@ export const PrestamoConCronograma = ({
 }) => {
   return (
     <>
+      {/* Botones de Pago Rápido */}
+      <BotonesPagoRapido
+        cuotas={cuotas}
+        datosPrestamoOriginal={datosPrestamoOriginal}
+        onAplicarPago={handleAplicarPago}
+      />
+
       <LoanInstallmentsManager
         cuotas={cuotas}
-        onAplicarPago={handleAplicarPago}
         onCambiarFecha={handleCambiarFecha}
         onEliminarPago={handleEliminarPago}
-        montoOriginal={datosPrestamoOriginal?.montoOriginal || 0}
-        tasaMensual={datosPrestamoOriginal?.tasaOriginal || 0}
-        numeroCuotas={datosPrestamoOriginal?.numeroCuotasOriginal || 0}
       />
       <PagoAnticipado
         montoOriginal={datosPrestamoOriginal?.montoOriginal || 0}
@@ -1152,6 +1207,9 @@ export const TabGestion = ({
   handleEliminarPago,
   iniciarProcesoAmpliacion,
   onAbrirCalculadora,
+  totalPagadoCuotasSinCronograma,
+  onPagoCuotaSinCronograma,
+  onPagoInteresSinCronograma,
 }) => {
   if (!datosPrestamoOriginal) {
     return <Alert severity="warning">No hay préstamo generado. Vuelva a la pestaña anterior.</Alert>;
@@ -1175,6 +1233,10 @@ export const TabGestion = ({
               plazoEditableSinCronograma={plazoEditableSinCronograma}
               setPlazoEditableSinCronograma={setPlazoEditableSinCronograma}
               recalcularPrestamoSinCronograma={recalcularPrestamoSinCronograma}
+              totalPagadoCuotas={totalPagadoCuotasSinCronograma}
+              interesAcumulado={interesAcumulado}
+              onPagoCuota={onPagoCuotaSinCronograma}
+              onPagoInteres={onPagoInteresSinCronograma}
             />
           ) : (
             <PrestamoConCronograma
