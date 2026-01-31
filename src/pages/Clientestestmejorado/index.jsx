@@ -58,6 +58,9 @@ const ClientesTest = () => {
     totalPagadoCuotasSinCronograma,
     handlePagoCuotaSinCronograma,
     handlePagoInteresSinCronograma,
+    // Pagos de intereses para mostrar en cronograma
+    pagosIntereses,
+    handleEliminarPagoInteres,
   } = useLoanManager();
 
   const handleGenerarPlan = () => {
@@ -136,6 +139,8 @@ const ClientesTest = () => {
             totalPagadoCuotasSinCronograma={totalPagadoCuotasSinCronograma}
             onPagoCuotaSinCronograma={handlePagoCuotaSinCronograma}
             onPagoInteresSinCronograma={handlePagoInteresSinCronograma}
+            pagosIntereses={pagosIntereses}
+            onEliminarPagoInteres={handleEliminarPagoInteres}
           />
         )}
 

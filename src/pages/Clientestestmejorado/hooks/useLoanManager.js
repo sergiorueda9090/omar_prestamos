@@ -33,6 +33,7 @@ const useLoanManager = () => {
   const [historial, setHistorial] = useState([]);
   const [interesAcumulado, setInteresAcumulado] = useState(0);
   const [totalPagadoCuotasSinCronograma, setTotalPagadoCuotasSinCronograma] = useState(0);
+  const [pagosIntereses, setPagosIntereses] = useState([]); // Registro de pagos solo de intereses
 
   const [dialogos, setDialogos] = useState({
     liquidacion: false,
@@ -159,6 +160,14 @@ const useLoanManager = () => {
   const handleAplicarPago = (monto, distribucion, tipoPago, datosSaldo = null) => {
     if (tipoPago === 'interes') {
       setInteresAcumulado(prev => prev + monto);
+      // Registrar el pago de interés para mostrarlo en el cronograma
+      setPagosIntereses(prev => [...prev, {
+        id: Date.now(),
+        fecha: dayjs().format('YYYY-MM-DD'),
+        monto: monto,
+        tipo: 'interes',
+        descripcion: 'Pago de Interés',
+      }]);
       agregarEvento('pago', 'Pago de Interés Registrado', `Pago de interés personalizado: $${formatMoney(monto)}. Se suma a las 3 utilidades.`, monto);
       return;
     }
@@ -236,7 +245,7 @@ const useLoanManager = () => {
     if (!parametrosAmpliacion || !datosPrestamoOriginal) return;
 
     const { montoAdicional, nuevaTasa, nuevasCuotas: numCuotasNuevas } = parametrosAmpliacion;
-    const { saldoFavor } = datosLiquidacion;
+    const { saldoFavor, totalInteres: interesLiquidacion } = datosLiquidacion;
     const capitalVigente = datosPrestamoOriginal.montoOriginal;
     const nuevoCapitalTotal = capitalVigente + montoAdicional;
     // Para ampliaciones, asumimos que las cuotas nuevas son mensuales (duracion = numCuotas)
@@ -276,7 +285,20 @@ const useLoanManager = () => {
       porcentajeInteres: nuevaTasa.toString(),
       duracionPrestamo: numCuotasNuevas.toString(),
     }));
-    agregarEvento('liquidacion', 'Liquidación Realizada', `Interés de liquidación: $${formatMoney(datosLiquidacion.totalInteres)}, Saldo a favor: $${formatMoney(saldoFavor)}`, datosLiquidacion.totalInteres);
+
+    // Agregar el interés de liquidación a los intereses acumulados
+    setInteresAcumulado(prev => prev + interesLiquidacion);
+
+    // Registrar el interés de liquidación para mostrarlo en el cronograma
+    setPagosIntereses(prev => [...prev, {
+      id: Date.now(),
+      fecha: dayjs().format('YYYY-MM-DD'),
+      monto: interesLiquidacion,
+      tipo: 'liquidacion',
+      descripcion: 'Interés de Liquidación',
+    }]);
+
+    agregarEvento('liquidacion', 'Liquidación Realizada', `Interés de liquidación: $${formatMoney(interesLiquidacion)}, Saldo a favor: $${formatMoney(saldoFavor)}. El interés se agregó a Intereses.`, interesLiquidacion);
     agregarEvento('ampliacion', 'Ampliación de Préstamo', `Monto adicional: $${formatMoney(montoAdicional)}, Nuevo total: $${formatMoney(nuevoCapitalTotal)}, ${numCuotasNuevas} cuotas`, montoAdicional);
     setDialogos(prev => ({ ...prev, liquidacion: false }));
     setParametrosAmpliacion(null);
@@ -316,11 +338,34 @@ const useLoanManager = () => {
 
   const handlePagoInteresSinCronograma = (monto, datos) => {
     setInteresAcumulado(prev => prev + monto);
+    // Registrar el pago de interés para mostrarlo en el cronograma
+    setPagosIntereses(prev => [...prev, {
+      id: Date.now(),
+      fecha: datos.fechaPago || dayjs().format('YYYY-MM-DD'),
+      monto: monto,
+      tipo: 'interes',
+      descripcion: datos.descripcion || 'Pago de Interés (Sin Cronograma)',
+    }]);
     agregarEvento(
       'pago',
       'Pago de Interés (Sin Cronograma)',
       `Pago de interés: $${formatMoney(monto)}. Fecha: ${dayjs(datos.fechaPago).format('DD/MM/YYYY')}${datos.descripcion ? `. ${datos.descripcion}` : ''}`,
       monto
+    );
+  };
+
+  // Función para eliminar un pago de interés
+  const handleEliminarPagoInteres = (pagoId) => {
+    const pago = pagosIntereses.find(p => p.id === pagoId);
+    if (!pago) return;
+
+    setPagosIntereses(prev => prev.filter(p => p.id !== pagoId));
+    setInteresAcumulado(prev => Math.max(0, prev - pago.monto));
+    agregarEvento(
+      'eliminacion_pago',
+      'Pago de Interés Eliminado',
+      `Se eliminó pago de interés por $${formatMoney(pago.monto)}. Fecha: ${dayjs(pago.fecha).format('DD/MM/YYYY')}`,
+      pago.monto
     );
   };
 
@@ -400,6 +445,9 @@ const useLoanManager = () => {
     totalPagadoCuotasSinCronograma,
     handlePagoCuotaSinCronograma,
     handlePagoInteresSinCronograma,
+    // Pagos de intereses para mostrar en cronograma
+    pagosIntereses,
+    handleEliminarPagoInteres,
   };
 };
 

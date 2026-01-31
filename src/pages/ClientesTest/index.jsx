@@ -622,11 +622,20 @@ const LoanExtensionPanel = ({
   tasaOriginal,
   cuotasRestantes,
   cuotasPagadas,
+  totalAbonado,
+  numeroCuotasOriginal,
   onAplicarAmpliacion,
 }) => {
   const [montoAdicional, setMontoAdicional] = useState('');
   const [nuevaTasa, setNuevaTasa] = useState(tasaOriginal.toString());
   const [nuevasCuotas, setNuevasCuotas] = useState('12');
+
+  // Calcular el interés de liquidación (usando la tasa original y cuotas restantes)
+  const { totalInteres: interesLiquidacion } = calcularInteresSimple(
+    montoOriginal,
+    tasaOriginal,
+    cuotasRestantes
+  );
 
   const handleMontoChange = (e) => {
     const value = e.target.value.replace(/\D/g, '');
@@ -725,12 +734,22 @@ const LoanExtensionPanel = ({
       <Card variant="outlined">
         <CardContent>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Información Actual
+            Información del Préstamo
           </Typography>
           <Grid container spacing={1}>
             <Grid item xs={6}>
               <Typography variant="body2">
                 <strong>Monto vigente:</strong> ${formatMoney(montoOriginal)}
+              </Typography>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="body2">
+                <strong>Tasa actual:</strong> {tasaOriginal}%
+              </Typography>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="body2">
+                <strong>Cuotas totales:</strong> {numeroCuotasOriginal}
               </Typography>
             </Grid>
             <Grid item xs={6}>
@@ -745,7 +764,38 @@ const LoanExtensionPanel = ({
             </Grid>
             <Grid item xs={6}>
               <Typography variant="body2">
-                <strong>Tasa actual:</strong> {tasaOriginal}%
+                <strong>Abono Total:</strong>{' '}
+                <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>
+                  ${formatMoney(totalAbonado)}
+                </span>
+              </Typography>
+            </Grid>
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="body2">
+                <strong>Intereses (Liquidación):</strong>{' '}
+                <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>
+                  ${formatMoney(interesLiquidacion)}
+                </span>
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                (Monto × Tasa × Cuotas restantes)
+              </Typography>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="body2">
+                <strong>Saldo a Favor Estimado:</strong>{' '}
+                <span style={{
+                  color: totalAbonado - interesLiquidacion >= 0 ? '#2e7d32' : '#d32f2f',
+                  fontWeight: 'bold'
+                }}>
+                  ${formatMoney(totalAbonado - interesLiquidacion)}
+                </span>
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                (Abono Total - Intereses)
               </Typography>
             </Grid>
           </Grid>
@@ -1131,10 +1181,12 @@ const ClientesTest = () => {
                   <LoanExtensionPanel
                     montoOriginal={datosPrestamoOriginal?.montoOriginal || 0}
                     tasaOriginal={datosPrestamoOriginal?.tasaOriginal || 0}
+                    numeroCuotasOriginal={datosPrestamoOriginal?.numeroCuotasOriginal || 0}
                     cuotasRestantes={
                       cuotas.filter(c => c.estado_pago !== 'pagado').length
                     }
                     cuotasPagadas={cuotasPagadas.length}
+                    totalAbonado={cuotasPagadas.reduce((sum, c) => sum + (c.abonado || 0), 0)}
                     onAplicarAmpliacion={iniciarProcesoAmpliacion}
                   />
                 </>

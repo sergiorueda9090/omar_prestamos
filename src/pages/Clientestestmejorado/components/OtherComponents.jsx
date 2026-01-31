@@ -518,6 +518,8 @@ export const LoanInstallmentsManager = ({
   cuotas,
   onCambiarFecha,
   onEliminarPago,
+  pagosIntereses = [],
+  onEliminarPagoInteres,
 }) => {
   const [dialogoFechaAbierto, setDialogoFechaAbierto] = useState(false);
   const [dialogoEliminarAbierto, setDialogoEliminarAbierto] = useState(false);
@@ -652,6 +654,124 @@ export const LoanInstallmentsManager = ({
         ))}
       </Paper>
 
+      {/* Sección de Pagos de Intereses */}
+      {pagosIntereses && pagosIntereses.length > 0 && (
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="h6" gutterBottom sx={{ color: 'warning.main' }}>
+            <MoneyIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+            Pagos de Intereses
+          </Typography>
+
+          <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+            {/* Header */}
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: '80px 1fr 1fr 1fr 100px',
+                backgroundColor: 'warning.main',
+                color: 'white',
+              }}
+            >
+              {['N°', 'Fecha', 'Tipo', 'Monto', 'Acciones'].map((header, idx) => (
+                <Box
+                  key={idx}
+                  sx={{
+                    p: 1.5,
+                    textAlign: 'center',
+                    borderRight: idx < 4 ? '1px solid rgba(255,255,255,0.2)' : 'none',
+                  }}
+                >
+                  <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '13px' }}>
+                    {header}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+
+            {/* Body */}
+            {pagosIntereses.map((pago, index) => (
+              <Box
+                key={pago.id}
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: '80px 1fr 1fr 1fr 100px',
+                  backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                  borderBottom: index < pagosIntereses.length - 1 ? '1px solid #dee2e6' : 'none',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 152, 0, 0.15)',
+                  },
+                }}
+              >
+                {/* N° */}
+                <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>INT-{index + 1}</Typography>
+                </Box>
+
+                {/* Fecha */}
+                <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+                  <Typography variant="body2">{dayjs(pago.fecha).format('DD/MM/YYYY')}</Typography>
+                </Box>
+
+                {/* Tipo */}
+                <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+                  <Chip
+                    label={pago.tipo === 'liquidacion' ? 'Liquidación' : 'Interés'}
+                    color={pago.tipo === 'liquidacion' ? 'error' : 'warning'}
+                    size="small"
+                    icon={<MoneyIcon />}
+                  />
+                </Box>
+
+                {/* Monto */}
+                <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+                  <Typography variant="body2" sx={{ color: 'warning.dark', fontWeight: 'bold' }}>
+                    ${formatMoney(pago.monto)}
+                  </Typography>
+                </Box>
+
+                {/* Acciones */}
+                <Box sx={{ p: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Tooltip title="Eliminar pago de interés">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="error"
+                      onClick={() => onEliminarPagoInteres && onEliminarPagoInteres(pago.id)}
+                      sx={{ minWidth: 'auto', px: 1, fontSize: '11px' }}
+                    >
+                      <CloseIcon fontSize="small" />
+                    </Button>
+                  </Tooltip>
+                </Box>
+              </Box>
+            ))}
+
+            {/* Total de Intereses */}
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: '80px 1fr 1fr 1fr 100px',
+                backgroundColor: 'warning.light',
+                borderTop: '2px solid',
+                borderColor: 'warning.main',
+              }}
+            >
+              <Box sx={{ p: 1.5, gridColumn: 'span 3', textAlign: 'right' }}>
+                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                  Total Intereses Pagados:
+                </Typography>
+              </Box>
+              <Box sx={{ p: 1.5, textAlign: 'center' }}>
+                <Typography variant="body1" sx={{ fontWeight: 'bold', color: 'warning.dark' }}>
+                  ${formatMoney(pagosIntereses.reduce((sum, p) => sum + p.monto, 0))}
+                </Typography>
+              </Box>
+              <Box sx={{ p: 1.5 }} />
+            </Box>
+          </Paper>
+        </Box>
+      )}
+
       <DialogoEditarFecha
         open={dialogoFechaAbierto}
         onClose={() => setDialogoFechaAbierto(false)}
@@ -752,11 +872,25 @@ export const LoanExtensionPanel = ({
   tasaOriginal,
   cuotasRestantes,
   cuotasPagadas,
+  totalAbonado,
+  numeroCuotasOriginal,
   onAplicarAmpliacion
 }) => {
   const [montoAdicional, setMontoAdicional] = useState('');
   const [nuevaTasa, setNuevaTasa] = useState(tasaOriginal.toString());
   const [nuevasCuotas, setNuevasCuotas] = useState('12');
+
+  // Calcular el interés de liquidación (usando la tasa original y cuotas restantes)
+  const { totalInteres: interesLiquidacion } = calcularInteresSimple(
+    montoOriginal,
+    tasaOriginal,
+    cuotasRestantes
+  );
+
+  const handleMontoChange = (e) => {
+    const value = e.target.value.replace(/\D/g, '');
+    setMontoAdicional(formatMoney(value));
+  };
 
   const handleAplicar = () => {
     const monto = parseMoney(montoAdicional);
@@ -768,49 +902,148 @@ export const LoanExtensionPanel = ({
       return;
     }
 
+    if (!tasa || tasa <= 0) {
+      alert('La tasa de interés debe ser mayor a 0');
+      return;
+    }
+
+    if (!cuotas || cuotas <= 0) {
+      alert('El número de cuotas debe ser mayor a 0');
+      return;
+    }
+
     onAplicarAmpliacion({ montoAdicional: monto, nuevaTasa: tasa, nuevasCuotas: cuotas });
   };
 
   return (
-    <Paper elevation={2} sx={{ p: 3, mt: 3, backgroundColor: 'rgba(33, 150, 243, 0.05)' }}>
-      <Typography variant="h6" gutterBottom color="primary">Ampliación de Préstamo</Typography>
-      <Alert severity="info" sx={{ mb: 2 }}>
-        Agregue más dinero al préstamo actual. Se realizará una liquidación del préstamo vigente.
+    <Paper elevation={2} sx={{ p: 3, mt: 3, backgroundColor: 'rgba(25, 118, 210, 0.05)' }}>
+      <Typography variant="h6" gutterBottom color="primary">
+        <AddIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+        Configurar Ampliación del Préstamo
+      </Typography>
+
+      <Alert severity="warning" sx={{ mb: 2 }}>
+        Al hacer clic en "Iniciar Ampliación", se abrirá el proceso de liquidación.
+        El saldo a favor se aplicará automáticamente a las nuevas cuotas.
       </Alert>
+
       <Grid container spacing={2}>
         <Grid item xs={12} md={4}>
           <TextField
             fullWidth
             label="Monto Adicional"
             value={montoAdicional}
-            onChange={(e) => setMontoAdicional(formatMoney(e.target.value.replace(/\D/g, '')))}
+            onChange={handleMontoChange}
+            placeholder="0"
             InputProps={{ startAdornment: <Typography sx={{ mr: 1 }}>$</Typography> }}
           />
         </Grid>
         <Grid item xs={12} md={4}>
           <TextField
             fullWidth
-            label="Nueva Tasa (%)"
+            label="Nueva Tasa de Interés (%)"
             type="number"
             value={nuevaTasa}
             onChange={(e) => setNuevaTasa(e.target.value)}
+            inputProps={{ step: '0.1', min: '0' }}
           />
         </Grid>
         <Grid item xs={12} md={4}>
           <TextField
             fullWidth
-            label="Nuevas Cuotas"
+            label="Número de Cuotas"
             type="number"
             value={nuevasCuotas}
             onChange={(e) => setNuevasCuotas(e.target.value)}
+            inputProps={{ min: '1' }}
           />
         </Grid>
         <Grid item xs={12}>
-          <Button fullWidth variant="contained" color="primary" onClick={handleAplicar} startIcon={<SwapIcon />}>
-            Aplicar Ampliación
+          <Button
+            fullWidth
+            variant="contained"
+            color="primary"
+            size="large"
+            onClick={handleAplicar}
+            startIcon={<LiquidateIcon />}
+          >
+            Iniciar Ampliación (con Liquidación)
           </Button>
         </Grid>
       </Grid>
+
+      <Divider sx={{ my: 2 }} />
+
+      <Card variant="outlined">
+        <CardContent>
+          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+            Información del Préstamo
+          </Typography>
+          <Grid container spacing={1}>
+            <Grid item xs={6}>
+              <Typography variant="body2">
+                <strong>Monto vigente:</strong> ${formatMoney(montoOriginal)}
+              </Typography>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="body2">
+                <strong>Tasa actual:</strong> {tasaOriginal}%
+              </Typography>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="body2">
+                <strong>Cuotas totales:</strong> {numeroCuotasOriginal}
+              </Typography>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="body2">
+                <strong>Cuotas pagadas:</strong> {cuotasPagadas}
+              </Typography>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="body2">
+                <strong>Cuotas restantes:</strong> {cuotasRestantes}
+              </Typography>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="body2">
+                <strong>Abono Total:</strong>{' '}
+                <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>
+                  ${formatMoney(totalAbonado)}
+                </span>
+              </Typography>
+            </Grid>
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="body2">
+                <strong>Intereses (Liquidación):</strong>{' '}
+                <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>
+                  ${formatMoney(interesLiquidacion)}
+                </span>
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                (Monto × Tasa × Cuotas restantes)
+              </Typography>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="body2">
+                <strong>Saldo a Favor Estimado:</strong>{' '}
+                <span style={{
+                  color: totalAbonado - interesLiquidacion >= 0 ? '#2e7d32' : '#d32f2f',
+                  fontWeight: 'bold'
+                }}>
+                  ${formatMoney(totalAbonado - interesLiquidacion)}
+                </span>
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                (Abono Total - Intereses)
+              </Typography>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
     </Paper>
   );
 };
@@ -826,66 +1059,260 @@ export const LiquidacionDialog = ({
   cuotasConPagos,
   onConfirmarLiquidacion
 }) => {
+  const [tasaLiquidacion, setTasaLiquidacion] = useState('');
+  const [plazoLiquidacion, setPlazoLiquidacion] = useState('');
   const [datosCalculados, setDatosCalculados] = useState(null);
 
   useEffect(() => {
     if (open && prestamoActual) {
-      const totalPagado = cuotasConPagos.reduce((sum, c) => sum + c.abonado, 0);
-      // Usar duración en meses si está disponible, sino usar número de cuotas
-      const numCuotas = cuotasConPagos.length || 1;
-      const duracionMeses = prestamoActual.duracionMesesOriginal || numCuotas;
-      const { totalInteres } = calcularInteresSimple(
-        prestamoActual.montoOriginal,
-        prestamoActual.tasaOriginal,
-        numCuotas,
-        duracionMeses
-      );
-      const saldoFavor = Math.max(0, totalPagado - prestamoActual.montoOriginal - totalInteres);
-
-      setDatosCalculados({ totalPagado, totalInteres, saldoFavor });
+      setTasaLiquidacion(prestamoActual.tasaOriginal.toString());
+      const cuotasRestantes = prestamoActual.numeroCuotasOriginal - cuotasConPagos.filter(c => c.estado_pago === 'pagado').length;
+      setPlazoLiquidacion(cuotasRestantes.toString());
+      setDatosCalculados(null);
     }
   }, [open, prestamoActual, cuotasConPagos]);
 
-  if (!prestamoActual) return null;
+  const calcularLiquidacion = () => {
+    if (!prestamoActual) return;
 
-  const handleConfirmar = () => {
-    if (datosCalculados) {
-      onConfirmarLiquidacion(datosCalculados);
+    const tasa = parseFloat(tasaLiquidacion);
+    const plazo = parseInt(plazoLiquidacion);
+
+    if (!tasa || tasa <= 0 || !plazo || plazo <= 0) {
+      alert('Por favor ingrese valores válidos para la tasa y el plazo');
+      return;
     }
+
+    // Calcular interés total de liquidación
+    const { totalInteres } = calcularInteresSimple(
+      prestamoActual.montoOriginal,
+      tasa,
+      plazo
+    );
+
+    // Calcular total pagado por el cliente
+    const totalPagado = cuotasConPagos.reduce((sum, c) => sum + (c.abonado || 0), 0);
+
+    // Calcular saldo a favor (dinero pagado - interés de liquidación)
+    const saldoFavor = totalPagado - totalInteres;
+
+    setDatosCalculados({
+      totalInteres,
+      totalPagado,
+      saldoFavor,
+      tasaUtilizada: tasa,
+      plazoUtilizado: plazo,
+    });
   };
 
+  const handleConfirmar = () => {
+    if (!datosCalculados) {
+      alert('Primero debe calcular la liquidación');
+      return;
+    }
+
+    onConfirmarLiquidacion(datosCalculados);
+    handleCerrar();
+  };
+
+  const handleCerrar = () => {
+    setTasaLiquidacion('');
+    setPlazoLiquidacion('');
+    setDatosCalculados(null);
+    onClose();
+  };
+
+  if (!prestamoActual) return null;
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog
+      open={open}
+      onClose={handleCerrar}
+      maxWidth="md"
+      fullWidth
+    >
       <DialogTitle>
-        <Box display="flex" alignItems="center">
-          <LiquidateIcon sx={{ mr: 1, color: 'error.main' }} />
-          <Typography variant="h6">Liquidación del Préstamo</Typography>
+        <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Box display="flex" alignItems="center">
+            <LiquidateIcon sx={{ mr: 1, color: 'primary.main' }} />
+            <Typography variant="h6">Liquidación del Préstamo</Typography>
+          </Box>
+          <IconButton onClick={handleCerrar} size="small">
+            <CloseIcon />
+          </IconButton>
         </Box>
       </DialogTitle>
+
       <DialogContent dividers>
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          Se liquidará el préstamo actual para aplicar la ampliación.
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Para ampliar el crédito, primero debe liquidar el préstamo actual.
+          El saldo a favor se aplicará a las primeras cuotas de la ampliación.
         </Alert>
+
+        {/* Información del Préstamo Actual */}
+        <Card variant="outlined" sx={{ mb: 3, backgroundColor: 'grey.50' }}>
+          <CardContent>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Información del Préstamo Actual
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={6}>
+                <Typography variant="body2">
+                  <strong>Monto Original:</strong> ${formatMoney(prestamoActual.montoOriginal)}
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2">
+                  <strong>Tasa Original:</strong> {prestamoActual.tasaOriginal}%
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2">
+                  <strong>Cuotas Totales:</strong> {prestamoActual.numeroCuotasOriginal}
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2">
+                  <strong>Cuotas Pagadas:</strong> {cuotasConPagos.filter(c => c.estado_pago === 'pagado').length}
+                </Typography>
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="body2">
+                  <strong>Total Pagado:</strong>{' '}
+                  <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>
+                    ${formatMoney(cuotasConPagos.reduce((sum, c) => sum + (c.abonado || 0), 0))}
+                  </span>
+                </Typography>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+
+        {/* Formulario de Liquidación */}
+        <Typography variant="subtitle1" gutterBottom sx={{ mt: 2, mb: 2 }}>
+          Parámetros de Liquidación
+        </Typography>
+
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="Tasa de Interés (%)"
+              type="number"
+              value={tasaLiquidacion}
+              onChange={(e) => setTasaLiquidacion(e.target.value)}
+              inputProps={{ step: '0.1', min: '0' }}
+              helperText="Tasa para calcular el interés de liquidación"
+            />
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="Plazo (meses)"
+              type="number"
+              value={plazoLiquidacion}
+              onChange={(e) => setPlazoLiquidacion(e.target.value)}
+              inputProps={{ min: '1' }}
+              helperText="Número de meses para el cálculo"
+            />
+          </Grid>
+
+          <Grid item xs={12}>
+            <Button
+              fullWidth
+              variant="contained"
+              color="primary"
+              onClick={calcularLiquidacion}
+              startIcon={<CalculateIcon />}
+            >
+              Calcular Liquidación
+            </Button>
+          </Grid>
+        </Grid>
+
+        {/* Resultados de la Liquidación */}
         {datosCalculados && (
-          <Card variant="outlined" sx={{ backgroundColor: 'grey.50' }}>
+          <Card
+            variant="outlined"
+            sx={{
+              mt: 3,
+              backgroundColor: datosCalculados.saldoFavor >= 0 ? 'success.50' : 'error.50',
+              border: 2,
+              borderColor: datosCalculados.saldoFavor >= 0 ? 'success.main' : 'error.main',
+            }}
+          >
             <CardContent>
+              <Typography variant="h6" gutterBottom color={datosCalculados.saldoFavor >= 0 ? 'success.main' : 'error.main'}>
+                Resultado de la Liquidación
+              </Typography>
+
+              <Divider sx={{ my: 2 }} />
+
               <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="text.secondary">Total Pagado</Typography>
-                  <Typography variant="h6">${formatMoney(datosCalculados.totalPagado)}</Typography>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Total de Interés (Liquidación)
+                  </Typography>
+                  <Typography variant="h6" color="error.main">
+                    ${formatMoney(datosCalculados.totalInteres)}
+                  </Typography>
                 </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="text.secondary">Saldo a Favor</Typography>
-                  <Typography variant="h6" color="success.main">${formatMoney(datosCalculados.saldoFavor)}</Typography>
+
+                <Grid item xs={12} md={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Total Pagado por Cliente
+                  </Typography>
+                  <Typography variant="h6" color="success.main">
+                    ${formatMoney(datosCalculados.totalPagado)}
+                  </Typography>
+                </Grid>
+
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1 }} />
+                </Grid>
+
+                <Grid item xs={12}>
+                  <Typography variant="body2" color="text.secondary">
+                    Saldo a Favor del Cliente
+                  </Typography>
+                  <Typography
+                    variant="h5"
+                    sx={{
+                      fontWeight: 'bold',
+                      color: datosCalculados.saldoFavor >= 0 ? 'success.main' : 'error.main',
+                    }}
+                  >
+                    ${formatMoney(datosCalculados.saldoFavor)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Este monto se abonará a las primeras cuotas de la ampliación
+                  </Typography>
                 </Grid>
               </Grid>
+
+              {datosCalculados.saldoFavor < 0 && (
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                  El cliente tiene un saldo negativo. Se debe ajustar la liquidación.
+                </Alert>
+              )}
             </CardContent>
           </Card>
         )}
       </DialogContent>
+
       <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} color="inherit">Cancelar</Button>
-        <Button onClick={handleConfirmar} variant="contained" color="error">Confirmar Liquidación</Button>
+        <Button onClick={handleCerrar} color="inherit">
+          Cancelar
+        </Button>
+        <Button
+          onClick={handleConfirmar}
+          variant="contained"
+          color="primary"
+          disabled={!datosCalculados || datosCalculados.saldoFavor < 0}
+        >
+          Confirmar y Continuar con Ampliación
+        </Button>
       </DialogActions>
     </Dialog>
   );
@@ -1150,6 +1577,8 @@ export const PrestamoConCronograma = ({
   handleEliminarPago,
   iniciarProcesoAmpliacion,
   onAbrirCalculadora,
+  pagosIntereses,
+  onEliminarPagoInteres,
 }) => {
   return (
     <>
@@ -1164,6 +1593,8 @@ export const PrestamoConCronograma = ({
         cuotas={cuotas}
         onCambiarFecha={handleCambiarFecha}
         onEliminarPago={handleEliminarPago}
+        pagosIntereses={pagosIntereses}
+        onEliminarPagoInteres={onEliminarPagoInteres}
       />
       <PagoAnticipado
         montoOriginal={datosPrestamoOriginal?.montoOriginal || 0}
@@ -1179,8 +1610,10 @@ export const PrestamoConCronograma = ({
       <LoanExtensionPanel
         montoOriginal={datosPrestamoOriginal?.montoOriginal || 0}
         tasaOriginal={datosPrestamoOriginal?.tasaOriginal || 0}
+        numeroCuotasOriginal={datosPrestamoOriginal?.numeroCuotasOriginal || 0}
         cuotasRestantes={cuotas.filter(c => c.estado_pago !== 'pagado').length}
         cuotasPagadas={cuotasCompletamentePagadas.length}
+        totalAbonado={cuotas.reduce((sum, c) => sum + (c.abonado || 0), 0)}
         onAplicarAmpliacion={iniciarProcesoAmpliacion}
       />
     </>
@@ -1210,6 +1643,8 @@ export const TabGestion = ({
   totalPagadoCuotasSinCronograma,
   onPagoCuotaSinCronograma,
   onPagoInteresSinCronograma,
+  pagosIntereses,
+  onEliminarPagoInteres,
 }) => {
   if (!datosPrestamoOriginal) {
     return <Alert severity="warning">No hay préstamo generado. Vuelva a la pestaña anterior.</Alert>;
@@ -1249,6 +1684,8 @@ export const TabGestion = ({
               handleEliminarPago={handleEliminarPago}
               iniciarProcesoAmpliacion={iniciarProcesoAmpliacion}
               onAbrirCalculadora={onAbrirCalculadora}
+              pagosIntereses={pagosIntereses}
+              onEliminarPagoInteres={onEliminarPagoInteres}
             />
           )}
         </Grid>
