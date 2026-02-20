@@ -173,7 +173,24 @@ const useLoanManager = () => {
     }
 
     if (tipoPago === 'pagar_saldo') {
-      agregarEvento('pago', 'Pago de Saldo Registrado', `Saldo pagado: $${formatMoney(monto)}. Dinero prestado: $${formatMoney(datosSaldo.dineroPrestado)}, Abono: $${formatMoney(datosSaldo.abonoCliente)}, Tasa: ${datosSaldo.porcentajeInteres}%, Plazo: ${datosSaldo.tiempo} meses, Fecha: ${dayjs(datosSaldo.fechaPago).format('DD/MM/YYYY')}`, monto);
+      const nuevasCuotasSaldo = [...cuotas];
+      distribucion.forEach(dist => {
+        const cuota = nuevasCuotasSaldo[dist.index];
+        cuota.abonado = (cuota.abonado || 0) + dist.abonar;
+        cuota.saldo = dist.saldoDespues;
+        if (cuota.saldo <= 0) {
+          cuota.estado_pago = 'pagado';
+          cuota.saldo = 0;
+          cuota.abonado = cuota.valor;
+        } else if (cuota.abonado > 0) {
+          cuota.estado_pago = 'parcial';
+        }
+      });
+      setCuotas(nuevasCuotasSaldo);
+      if (datosPrestamoOriginal) {
+        actualizarResumen(nuevasCuotasSaldo, datosPrestamoOriginal.montoOriginal, datosPrestamoOriginal.tasaOriginal, datosPrestamoOriginal.numeroCuotasOriginal);
+      }
+      agregarEvento('pago', 'Pago de Saldo Total Registrado', `Saldo total pagado: $${formatMoney(monto)}. ${distribucion.length} cuota(s) liquidadas. Fecha: ${dayjs(datosSaldo.fechaPago).format('DD/MM/YYYY')}`, monto);
       return;
     }
 
