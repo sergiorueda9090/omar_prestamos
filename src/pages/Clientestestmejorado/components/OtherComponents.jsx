@@ -28,6 +28,7 @@ import {
   ListItem,
   ListItemText,
   Avatar,
+  Collapse,
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
@@ -43,6 +44,8 @@ import {
   CalendarToday as CalendarIcon,
   SwapHoriz as SwapIcon,
   Info as InfoIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import {
@@ -50,6 +53,7 @@ import {
   parseMoney,
   calcularInteresSimple,
   calcularInteresCuota,
+  calcularFechasCobro,
 } from '../utils/loanCalculations';
 import TarjetaInformacionPrestamo from './TarjetaInformacionPrestamo';
 import BotonesPagoRapido from './BotonesPagoRapido';
@@ -1436,6 +1440,7 @@ export const PrestamoSinCronograma = ({
 }) => {
   const [dialogoConfirmarPlazoAbierto, setDialogoConfirmarPlazoAbierto] = useState(false);
   const [plazoTemporal, setPlazoTemporal] = useState('');
+  const [mostrarFechasCobro, setMostrarFechasCobro] = useState(true);
 
   const handlePlazoChange = (e) => {
     const nuevoValor = e.target.value;
@@ -1458,6 +1463,16 @@ export const PrestamoSinCronograma = ({
 
   // Calcular saldo pendiente
   const saldoPendiente = (datosPrestamoOriginal?.saldoTotalOriginal || 0) - (totalPagadoCuotas || 0);
+
+  // Calcular fechas de cobro para mostrar el cronograma de referencia
+  const fechasCobro = (datosPrestamoOriginal?.fechaPrestamo && datosPrestamoOriginal?.tipoPrestamo)
+    ? calcularFechasCobro(
+        datosPrestamoOriginal.fechaPrestamo,
+        datosPrestamoOriginal.numeroCuotasOriginal,
+        datosPrestamoOriginal.tipoPrestamo,
+        datosPrestamoOriginal.diaCobro
+      )
+    : [];
 
   return (
     <>
@@ -1514,6 +1529,101 @@ export const PrestamoSinCronograma = ({
           </Grid>
         </CardContent>
       </Card>
+
+      {/* Fechas de Cobro */}
+      {fechasCobro.length > 0 && (
+        <Paper
+          variant="outlined"
+          sx={{
+            mb: 3,
+            p: 2,
+            backgroundColor: 'rgba(25, 118, 210, 0.05)',
+            border: '1px solid',
+            borderColor: 'primary.light',
+          }}
+        >
+          <Box
+            display="flex"
+            alignItems="center"
+            justifyContent="space-between"
+            sx={{ cursor: 'pointer' }}
+            onClick={() => setMostrarFechasCobro(!mostrarFechasCobro)}
+          >
+            <Box display="flex" alignItems="center" gap={1}>
+              <CalendarIcon color="primary" />
+              <Typography variant="subtitle1" color="primary" fontWeight="bold">
+                Fechas de Cobro
+              </Typography>
+              <Chip
+                label={`${fechasCobro.length} cuotas`}
+                size="small"
+                color="primary"
+                variant="outlined"
+              />
+            </Box>
+            {mostrarFechasCobro ? <ExpandLessIcon color="primary" /> : <ExpandMoreIcon color="primary" />}
+          </Box>
+
+          <Collapse in={mostrarFechasCobro}>
+            <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
+              <strong>Tipo:</strong> {datosPrestamoOriginal.tipoPrestamo} |{' '}
+              <strong>Primer cobro:</strong> {dayjs(fechasCobro[0]).format('DD/MM/YYYY')} |{' '}
+              <strong>Último cobro:</strong> {dayjs(fechasCobro[fechasCobro.length - 1]).format('DD/MM/YYYY')}
+            </Alert>
+
+            <TableContainer sx={{ maxHeight: 300 }}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
+                      Cuota
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
+                      Fecha de Cobro
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
+                      Día
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
+                      Valor
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {fechasCobro.map((fecha, index) => (
+                    <TableRow
+                      key={index}
+                      sx={{
+                        backgroundColor: index % 2 === 0 ? 'grey.50' : 'white',
+                        '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.08)' },
+                      }}
+                    >
+                      <TableCell>
+                        <Chip label={`#${index + 1}`} size="small" color="primary" variant="outlined" />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="medium">
+                          {dayjs(fecha).format('DD/MM/YYYY')}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                          {dayjs(fecha).format('dddd')}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" color="success.main" fontWeight="bold">
+                          ${formatMoney(datosPrestamoOriginal.valorCuotaOriginal)}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Collapse>
+        </Paper>
+      )}
 
       {/* Resumen de Pagos */}
       <Card sx={{ mb: 3, backgroundColor: 'success.50' }}>

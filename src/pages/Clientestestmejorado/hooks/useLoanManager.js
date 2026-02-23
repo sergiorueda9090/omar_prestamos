@@ -120,6 +120,8 @@ const useLoanManager = () => {
         sinCronograma: true,
         numeroTarjeta: config.numeroTarjeta || '',
         nombreCliente: config.nombre || '',
+        fechaPrestamo: config.fechaPrestamo,
+        diaCobro: config.diaCobro,
       });
       actualizarResumen([], monto, tasa, numeroCuotas);
       agregarEvento('creacion', 'Préstamo Creado (Sin Cronograma)', `Monto: $${formatMoney(monto)}, Tasa: ${tasa}%, Plazo: ${duracion} meses (${numeroCuotas} cuotas ${config.tipoPrestamo})`, monto);
