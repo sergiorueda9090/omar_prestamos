@@ -654,7 +654,7 @@ const BotonesPagoRapido = ({
               }}
             >
               <Typography variant="button" sx={{ fontWeight: 'bold' }}>
-                Pagar Saldo Total
+                Pagar Saldo Total asdasdasdsd
               </Typography>
               <Typography variant="caption" sx={{ opacity: 0.9 }}>
                 ${formatMoney(saldoTotalPendiente)}
