@@ -1,10 +1,50 @@
-vamos a trabajar en este componente src\pages\Clientestestmejorado\components\BotonesPagoRapido.jsx en pagar saldo total se debe mostrar
-el modal con la siguente informacion.
-Dinero Prestado
-Abono Total
-se debe agregar el input de porcentaje de interes % en el cual uno le agrega el valor que uno quiera
-otro input con llamado tiempo uno puede agregar el valor que uno quiera 1 ,6 ,9 meses...
-y se debe seleccionar una fecha tambien.
-y mostrar el total a pagar cada vez que cambie interes o tiemepo se debe ir cambiando tambien el total a pagar.
-cuando se de click en el boton que dice pagar en el modal. sebe debe actualizar la tarjeta ya que el cliente esta pagando el saldo total 
-las cuotas quedan pagas todo bien funcionado 
+Trabaja en: src/pages/Clientestestmejorado/components/BotonesPagoRapido.jsx
+
+CONTEXTO:
+Antes de hacer cualquier cambio, lee y entiende bien cómo funciona
+src/pages/Clientestestmejorado y todos sus componentes relacionados
+para no romper nada existente.
+
+TAREA — Botón "Pagar Saldo Total":
+Al hacer clic en el botón "Pagar Saldo Total", debe abrirse un modal
+con la siguiente estructura y comportamiento:
+
+─────────────────────────────────────────
+PASO 1 — Información de solo lectura (mostrar):
+  • Dinero Prestado (valor actual del cliente)
+  • Abono Total (suma de abonos realizados)
+
+PASO 2 — Inputs editables:
+  • Input "Interés (%)" → el usuario escribe el porcentaje que desee
+  • Input "Tiempo (meses)" → el usuario escribe la cantidad de meses
+    (ejemplos: 1, 6, 9...)
+
+PASO 3 — Selector de fecha:
+  • Un date picker para seleccionar la fecha del pago
+
+PASO 4 — Total a Pagar (reactivo):
+  • Calcular y mostrar el total a pagar
+  • Este valor debe recalcularse automáticamente cada vez que
+    cambie el interés o el tiempo
+  • Fórmula sugerida: Total = Dinero Prestado + (Dinero Prestado * (interés/100) * tiempo)
+    (ajusta si ya existe otra lógica de cálculo en el proyecto)
+
+─────────────────────────────────────────
+PASO 5 — Acción del botón "Pagar" dentro del modal:
+Al confirmar el pago:
+  1. Marcar el saldo total como pagado
+  2. Marcar todas las cuotas pendientes como pagadas
+  3. Actualizar la tarjeta del cliente en pantalla para reflejar
+     el nuevo estado (sin deuda pendiente)
+  4. Cerrar el modal
+  5. NO romper ningún otro flujo existente del componente
+
+─────────────────────────────────────────
+IMPORTANTE:
+- Revisa cómo se manejan los estados y datos en el componente padre
+  antes de modificar nada.
+- Mantén la misma estructura de estilos y componentes UI que ya
+  se usa en el proyecto.
+- Haz los cambios de forma incremental, paso a paso.
+- Si necesitas modificar otros archivos además de BotonesPagoRapido.jsx,
+  indícalo antes de hacerlo.

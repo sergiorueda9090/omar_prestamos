@@ -416,31 +416,41 @@ export const DialogoPagarSaldoTotal = ({
   onConfirmarPago,
 }) => {
   const [fechaPago, setFechaPago] = useState(dayjs().format('YYYY-MM-DD'));
-  const [confirmado, setConfirmado] = useState(false);
+  const [porcentajeInteres, setPorcentajeInteres] = useState('');
+  const [tiempo, setTiempo] = useState('');
 
-  // Calcular saldo total pendiente
+  // PASO 1: Información de solo lectura
+  const dineroPrestado = datosPrestamoOriginal?.montoOriginal || 0;
+  const abonoTotal = cuotas.reduce((sum, c) => sum + (c.abonado || 0), 0);
+
+  // PASO 4: Total a Pagar reactivo
+  const interes = parseFloat(porcentajeInteres) || 0;
+  const meses = parseInt(tiempo) || 0;
+  const totalAPagar = tiempo !== '' && meses > 0
+    ? dineroPrestado + (dineroPrestado * (interes / 100) * meses)
+    : 0;
+
   const cuotasPendientes = cuotas.filter(c => c.estado_pago !== 'pagado');
-  const saldoTotalPendiente = cuotasPendientes.reduce((sum, c) => sum + (c.saldo !== undefined ? c.saldo : c.valor), 0);
 
   useEffect(() => {
     if (open) {
       setFechaPago(dayjs().format('YYYY-MM-DD'));
-      setConfirmado(false);
+      setPorcentajeInteres('');
+      setTiempo('');
     }
   }, [open]);
 
   const handleConfirmar = () => {
-    if (saldoTotalPendiente <= 0) {
-      alert('No hay saldo pendiente para pagar');
+    if (totalAPagar <= 0) {
+      alert('Ingrese el interés y el tiempo para calcular el total a pagar');
       return;
     }
 
-    // Crear distribución para todas las cuotas pendientes
+    // Marcar todas las cuotas pendientes como pagadas
     const distribucion = [];
     for (let i = 0; i < cuotas.length; i++) {
       const cuota = cuotas[i];
       const saldoCuota = cuota.saldo !== undefined ? cuota.saldo : cuota.valor;
-
       if (saldoCuota > 0 && cuota.estado_pago !== 'pagado') {
         distribucion.push({
           index: i,
@@ -448,25 +458,28 @@ export const DialogoPagarSaldoTotal = ({
           abonar: saldoCuota,
           saldoAntes: saldoCuota,
           saldoDespues: 0,
-          estado: 'pagado'
+          estado: 'pagado',
         });
       }
     }
 
-    onConfirmarPago(saldoTotalPendiente, distribucion, 'pagar_saldo', {
+    onConfirmarPago(totalAPagar, distribucion, 'pagar_saldo', {
       fechaPago,
-      dineroPrestado: datosPrestamoOriginal?.montoOriginal || 0,
-      abonoCliente: saldoTotalPendiente,
-      porcentajeInteres: datosPrestamoOriginal?.tasaOriginal || 0,
-      tiempo: datosPrestamoOriginal?.numeroCuotasOriginal || 0,
+      dineroPrestado,
+      abonoCliente: totalAPagar,
+      porcentajeInteres: interes,
+      tiempo: meses,
     });
     handleCerrar();
   };
 
   const handleCerrar = () => {
-    setConfirmado(false);
+    setPorcentajeInteres('');
+    setTiempo('');
     onClose();
   };
+
+  const puedeConfirmar = totalAPagar > 0 && cuotasPendientes.length > 0;
 
   return (
     <Dialog open={open} onClose={handleCerrar} maxWidth="sm" fullWidth>
@@ -474,7 +487,7 @@ export const DialogoPagarSaldoTotal = ({
         <Box display="flex" alignItems="center" justifyContent="space-between">
           <Box display="flex" alignItems="center">
             <WalletIcon sx={{ mr: 1, color: 'error.main' }} />
-            <Typography variant="h6">Pagar Saldo Total Pendiente</Typography>
+            <Typography variant="h6">Pagar Saldo Total</Typography>
           </Box>
           <IconButton onClick={handleCerrar} size="small">
             <CloseIcon />
@@ -482,54 +495,62 @@ export const DialogoPagarSaldoTotal = ({
         </Box>
       </DialogTitle>
       <DialogContent dividers>
-        <Alert severity="error" sx={{ mb: 3 }}>
-          <strong>Liquidación total:</strong> Esta acción pagará todas las cuotas pendientes
-          y liquidará completamente el préstamo.
-        </Alert>
 
-        <Card variant="outlined" sx={{ mb: 3, backgroundColor: 'error.50', border: 2, borderColor: 'error.main' }}>
+        {/* PASO 1: Información de solo lectura */}
+        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+          Información del Préstamo
+        </Typography>
+        <Card variant="outlined" sx={{ mb: 3, backgroundColor: 'grey.50' }}>
           <CardContent>
             <Grid container spacing={2}>
               <Grid item xs={6}>
-                <Typography variant="body2" color="text.secondary">Cuotas Pendientes</Typography>
-                <Typography variant="h5">{cuotasPendientes.length}</Typography>
+                <Typography variant="body2" color="text.secondary">Dinero Prestado</Typography>
+                <Typography variant="h6" color="primary.main">
+                  ${formatMoney(dineroPrestado)}
+                </Typography>
               </Grid>
               <Grid item xs={6}>
-                <Typography variant="body2" color="text.secondary">Saldo Total a Pagar</Typography>
-                <Typography variant="h4" color="error.main" sx={{ fontWeight: 'bold' }}>
-                  ${formatMoney(saldoTotalPendiente)}
+                <Typography variant="body2" color="text.secondary">Abono Total</Typography>
+                <Typography variant="h6" color="success.main">
+                  ${formatMoney(abonoTotal)}
                 </Typography>
               </Grid>
             </Grid>
           </CardContent>
         </Card>
 
-        {cuotasPendientes.length > 0 && (
-          <Card variant="outlined" sx={{ mb: 3 }}>
-            <CardContent>
-              <Typography variant="subtitle2" gutterBottom>Detalle de Cuotas a Pagar</Typography>
-              <TableContainer sx={{ maxHeight: 200 }}>
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Cuota</TableCell>
-                      <TableCell align="right">Saldo</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {cuotasPendientes.map((cuota, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell>#{cuota.numero}</TableCell>
-                        <TableCell align="right">${formatMoney(cuota.saldo !== undefined ? cuota.saldo : cuota.valor)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
-        )}
+        {/* PASO 2: Inputs editables */}
+        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+          Condiciones del Pago
+        </Typography>
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="Interés (%)"
+              type="number"
+              value={porcentajeInteres}
+              onChange={(e) => setPorcentajeInteres(e.target.value)}
+              placeholder="Ej: 5, 10, 15..."
+              InputProps={{ endAdornment: <Typography sx={{ ml: 1 }}>%</Typography> }}
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="Tiempo (meses)"
+              type="number"
+              value={tiempo}
+              onChange={(e) => setTiempo(e.target.value)}
+              placeholder="Ej: 1, 6, 9..."
+            />
+          </Grid>
+        </Grid>
 
+        {/* PASO 3: Selector de fecha */}
+        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+          Fecha del Pago
+        </Typography>
         <TextField
           fullWidth
           type="date"
@@ -537,14 +558,41 @@ export const DialogoPagarSaldoTotal = ({
           value={fechaPago}
           onChange={(e) => setFechaPago(e.target.value)}
           InputLabelProps={{ shrink: true }}
-          sx={{ mb: 2 }}
+          sx={{ mb: 3 }}
         />
 
-        <Alert severity="warning">
-          <Typography variant="body2">
-            <strong>Confirme que desea pagar el saldo total de ${formatMoney(saldoTotalPendiente)}</strong>
-          </Typography>
-        </Alert>
+        {/* PASO 4: Total a Pagar (reactivo) */}
+        <Card
+          variant="outlined"
+          sx={{
+            border: 2,
+            borderColor: totalAPagar > 0 ? 'error.main' : 'grey.300',
+            backgroundColor: totalAPagar > 0 ? 'rgba(211, 47, 47, 0.05)' : 'grey.50',
+          }}
+        >
+          <CardContent>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Total a Pagar
+            </Typography>
+            <Typography
+              variant="h4"
+              color={totalAPagar > 0 ? 'error.main' : 'text.disabled'}
+              sx={{ fontWeight: 'bold' }}
+            >
+              ${formatMoney(totalAPagar)}
+            </Typography>
+            {totalAPagar > 0 ? (
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                ${formatMoney(dineroPrestado)} + (${formatMoney(dineroPrestado)} × {interes}% × {meses} {meses === 1 ? 'mes' : 'meses'})
+              </Typography>
+            ) : (
+              <Typography variant="caption" color="text.disabled">
+                Ingrese el interés y el tiempo para ver el total
+              </Typography>
+            )}
+          </CardContent>
+        </Card>
+
       </DialogContent>
       <DialogActions sx={{ p: 2 }}>
         <Button onClick={handleCerrar} color="inherit">Cancelar</Button>
@@ -552,10 +600,10 @@ export const DialogoPagarSaldoTotal = ({
           onClick={handleConfirmar}
           variant="contained"
           color="error"
-          disabled={saldoTotalPendiente <= 0}
+          disabled={!puedeConfirmar}
           startIcon={<WalletIcon />}
         >
-          Pagar ${formatMoney(saldoTotalPendiente)}
+          Pagar ${formatMoney(totalAPagar)}
         </Button>
       </DialogActions>
     </Dialog>
