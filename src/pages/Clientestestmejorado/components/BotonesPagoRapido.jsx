@@ -426,9 +426,10 @@ export const DialogoPagarSaldoTotal = ({
   // PASO 4: Total a Pagar reactivo
   const interes = parseFloat(porcentajeInteres) || 0;
   const meses = parseInt(tiempo) || 0;
-  const totalAPagar = tiempo !== '' && meses > 0
+  const totalBruto = tiempo !== '' && meses > 0
     ? dineroPrestado + (dineroPrestado * (interes / 100) * meses)
     : 0;
+  const totalAPagar = Math.max(0, totalBruto - abonoTotal);
 
   const cuotasPendientes = cuotas.filter(c => c.estado_pago !== 'pagado');
 
@@ -469,6 +470,7 @@ export const DialogoPagarSaldoTotal = ({
       abonoCliente: totalAPagar,
       porcentajeInteres: interes,
       tiempo: meses,
+      totalBruto,
     });
     handleCerrar();
   };
@@ -566,29 +568,59 @@ export const DialogoPagarSaldoTotal = ({
           variant="outlined"
           sx={{
             border: 2,
-            borderColor: totalAPagar > 0 ? 'error.main' : 'grey.300',
-            backgroundColor: totalAPagar > 0 ? 'rgba(211, 47, 47, 0.05)' : 'grey.50',
+            borderColor: totalBruto > 0 ? 'error.main' : 'grey.300',
+            backgroundColor: totalBruto > 0 ? 'rgba(211, 47, 47, 0.05)' : 'grey.50',
           }}
         >
           <CardContent>
             <Typography variant="subtitle2" color="text.secondary" gutterBottom>
               Total a Pagar
             </Typography>
-            <Typography
-              variant="h4"
-              color={totalAPagar > 0 ? 'error.main' : 'text.disabled'}
-              sx={{ fontWeight: 'bold' }}
-            >
-              ${formatMoney(totalAPagar)}
-            </Typography>
-            {totalAPagar > 0 ? (
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                ${formatMoney(dineroPrestado)} + (${formatMoney(dineroPrestado)} × {interes}% × {meses} {meses === 1 ? 'mes' : 'meses'})
-              </Typography>
+
+            {totalBruto > 0 ? (
+              <Box>
+                {/* Total Bruto */}
+                <Box display="flex" justifyContent="space-between" alignItems="baseline" sx={{ mb: 0.5 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Total Bruto
+                    <Typography component="span" variant="caption" color="text.disabled" sx={{ ml: 0.5 }}>
+                      (${formatMoney(dineroPrestado)} + ${formatMoney(dineroPrestado)} × {interes}% × {meses} {meses === 1 ? 'mes' : 'meses'})
+                    </Typography>
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 'medium', ml: 2, whiteSpace: 'nowrap' }}>
+                    ${formatMoney(totalBruto)}
+                  </Typography>
+                </Box>
+
+                {/* − Abono Total */}
+                <Box display="flex" justifyContent="space-between" alignItems="baseline" sx={{ mb: 1 }}>
+                  <Typography variant="body2" color="success.main">− Abono Total</Typography>
+                  <Typography variant="body1" color="success.main" sx={{ ml: 2 }}>
+                    ${formatMoney(abonoTotal)}
+                  </Typography>
+                </Box>
+
+                <Divider sx={{ mb: 1 }} />
+
+                {/* = Total a Pagar */}
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography variant="subtitle1" color="error.main" sx={{ fontWeight: 'bold' }}>
+                    = Total a Pagar
+                  </Typography>
+                  <Typography variant="h5" color="error.main" sx={{ fontWeight: 'bold' }}>
+                    ${formatMoney(totalAPagar)}
+                  </Typography>
+                </Box>
+              </Box>
             ) : (
-              <Typography variant="caption" color="text.disabled">
-                Ingrese el interés y el tiempo para ver el total
-              </Typography>
+              <>
+                <Typography variant="h4" color="text.disabled" sx={{ fontWeight: 'bold' }}>
+                  $0
+                </Typography>
+                <Typography variant="caption" color="text.disabled">
+                  Ingrese el interés y el tiempo para ver el total
+                </Typography>
+              </>
             )}
           </CardContent>
         </Card>

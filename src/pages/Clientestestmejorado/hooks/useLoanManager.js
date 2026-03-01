@@ -175,24 +175,52 @@ const useLoanManager = () => {
     }
 
     if (tipoPago === 'pagar_saldo') {
+      const totalBruto = datosSaldo?.totalBruto;
+      const numCuotasTotal = cuotas.length;
       const nuevasCuotasSaldo = [...cuotas];
-      distribucion.forEach(dist => {
-        const cuota = nuevasCuotasSaldo[dist.index];
-        cuota.abonado = (cuota.abonado || 0) + dist.abonar;
-        cuota.saldo = dist.saldoDespues;
-        if (cuota.saldo <= 0) {
-          cuota.estado_pago = 'pagado';
+
+      if (totalBruto && totalBruto > 0 && numCuotasTotal > 0) {
+        // Redistribuir el totalBruto del modal entre todas las cuotas
+        // para que la tarjeta refleje exactamente los valores calculados
+        const nuevoValorCuota = totalBruto / numCuotasTotal;
+        nuevasCuotasSaldo.forEach(cuota => {
+          cuota.valor = nuevoValorCuota;
+          cuota.abonado = nuevoValorCuota;
           cuota.saldo = 0;
-          cuota.abonado = cuota.valor;
-        } else if (cuota.abonado > 0) {
-          cuota.estado_pago = 'parcial';
+          cuota.estado_pago = 'pagado';
+        });
+
+        // Actualizar datosPrestamoOriginal para reflejar el nuevo total
+        const datosActualizados = {
+          ...datosPrestamoOriginal,
+          saldoTotalOriginal: totalBruto,
+          totalInteresOriginal: totalBruto - datosPrestamoOriginal.montoOriginal,
+          valorCuotaOriginal: nuevoValorCuota,
+        };
+        setDatosPrestamoOriginal(datosActualizados);
+        setCuotas(nuevasCuotasSaldo);
+        actualizarResumen(nuevasCuotasSaldo, datosActualizados.montoOriginal, datosActualizados.tasaOriginal, datosActualizados.numeroCuotasOriginal);
+      } else {
+        // Fallback: marcar cuotas pendientes con valores originales
+        distribucion.forEach(dist => {
+          const cuota = nuevasCuotasSaldo[dist.index];
+          cuota.abonado = (cuota.abonado || 0) + dist.abonar;
+          cuota.saldo = dist.saldoDespues;
+          if (cuota.saldo <= 0) {
+            cuota.estado_pago = 'pagado';
+            cuota.saldo = 0;
+            cuota.abonado = cuota.valor;
+          } else if (cuota.abonado > 0) {
+            cuota.estado_pago = 'parcial';
+          }
+        });
+        setCuotas(nuevasCuotasSaldo);
+        if (datosPrestamoOriginal) {
+          actualizarResumen(nuevasCuotasSaldo, datosPrestamoOriginal.montoOriginal, datosPrestamoOriginal.tasaOriginal, datosPrestamoOriginal.numeroCuotasOriginal);
         }
-      });
-      setCuotas(nuevasCuotasSaldo);
-      if (datosPrestamoOriginal) {
-        actualizarResumen(nuevasCuotasSaldo, datosPrestamoOriginal.montoOriginal, datosPrestamoOriginal.tasaOriginal, datosPrestamoOriginal.numeroCuotasOriginal);
       }
-      agregarEvento('pago', 'Pago de Saldo Total Registrado', `Saldo total pagado: $${formatMoney(monto)}. ${distribucion.length} cuota(s) liquidadas. Fecha: ${dayjs(datosSaldo.fechaPago).format('DD/MM/YYYY')}`, monto);
+
+      agregarEvento('pago', 'Pago de Saldo Total Registrado', `Saldo total pagado: $${formatMoney(totalBruto || monto)}. ${numCuotasTotal} cuota(s) liquidadas. Fecha: ${dayjs(datosSaldo.fechaPago).format('DD/MM/YYYY')}`, totalBruto || monto);
       return;
     }
 
