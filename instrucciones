@@ -1,0 +1,10 @@
+vamos a trabajar en este componente src\pages\Clientestestmejorado\components\BotonesPagoRapido.jsx en pagar saldo total se debe mostrar
+el modal con la siguente informacion.
+Dinero Prestado
+Abono Total
+se debe agregar el input de porcentaje de interes % en el cual uno le agrega el valor que uno quiera
+otro input con llamado tiempo uno puede agregar el valor que uno quiera 1 ,6 ,9 meses...
+y se debe seleccionar una fecha tambien.
+y mostrar el total a pagar cada vez que cambie interes o tiemepo se debe ir cambiando tambien el total a pagar.
+cuando se de click en el boton que dice pagar en el modal. sebe debe actualizar la tarjeta ya que el cliente esta pagando el saldo total 
+las cuotas quedan pagas todo bien funcionado 
