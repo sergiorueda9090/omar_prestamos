@@ -29,8 +29,34 @@ PASO 4 — Total a Pagar (reactivo):
   • Fórmula sugerida: Total = Dinero Prestado + (Dinero Prestado * (interés/100) * tiempo)
     (ajusta si ya existe otra lógica de cálculo en el proyecto)
 
+Paso 5 en total a pagar se debe mostrar el total a pagar menos el Abono Total
+    se debe mostra lo que se va a pagar en el boton pagar
+    si se pago ese valor que pago el cliente se debe sumar en el contenido de la tarjeta 
+    ejemplo si el cliente tiene un prestamo de 1.000.000 a 10 meses con un interes del 6% el total a pagar seria 1.600.000
+    pero el cliente ya hizo un pago de 800.000 pero el cliente hace un pago Pagar Saldo Total
+    entonces Dinero Prestado fue 1.000.000 el Abono total fue 800.000 y ahora en el interes es de 7% a 6 meses los valores deberian ser
+Dinero Prestado: 1.000.000
+Abono Total: 800.000
+Interés: 7%
+Tiempo: 6 meses
+Total a Pagar: 1.000.000 + (1.000.000 * (7/100) * 6) = 1.420.000
+Pero como el cliente ya pago 800.000 el valor a pagar seria 1.420
+000 - 800.000 = 620.000
+Entonces en el botón pagar se debería mostrar 620.000 y al pagar ese valor se debe
+sumar a lo que ya pago el cliente y mostrarlo en la tarjeta del cliente
+Abono Total + intereses	1,420,000
+Abono Total	1,420,000
+Saldo Total	0
+Saldo A Inversion + Intereses	0
+Intereses Pendientes	0
+Cuotas Pagas	10
+Cuotas Pendientes	0
+Intereses	0
+Utilidad Real 1	420,000
+Utilidad Real 2	420,000
+Utilidad Real 3	420,000
 ─────────────────────────────────────────
-PASO 5 — Acción del botón "Pagar" dentro del modal:
+PASO 6 — Acción del botón "Pagar" dentro del modal:
 Al confirmar el pago:
   1. Marcar el saldo total como pagado
   2. Marcar todas las cuotas pendientes como pagadas
