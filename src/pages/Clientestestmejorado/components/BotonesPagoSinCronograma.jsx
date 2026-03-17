@@ -19,6 +19,9 @@ import {
   TableBody,
   TableCell,
   TableRow,
+  Tabs,
+  Tab,
+  Chip,
 } from '@mui/material';
 import {
   Payment as PaymentIcon,
@@ -26,6 +29,8 @@ import {
   AccountBalanceWallet as WalletIcon,
   TrendingUp as InterestIcon,
   Warning as WarningIcon,
+  Add as AddIcon,
+  AccountBalance as LiquidateIcon,
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import { formatMoney, parseMoney, calcularInteresSimple } from '../utils/loanCalculations';
@@ -330,32 +335,113 @@ export const DialogoPagarSaldoTotalSinCronograma = ({
   datosPrestamoOriginal,
   totalPagadoCuotas,
   onConfirmarPago,
+  onAplicarAmpliacion,
 }) => {
-  const [fechaPago, setFechaPago] = useState(dayjs().format('YYYY-MM-DD'));
+  const [tabActual, setTabActual] = useState(0);
 
-  const saldoTotalPendiente = (datosPrestamoOriginal?.saldoTotalOriginal || 0) - totalPagadoCuotas;
+  // === Estado: Pagar Saldo ===
+  const [fechaPago, setFechaPago] = useState(dayjs().format('YYYY-MM-DD'));
+  const [porcentajeInteres, setPorcentajeInteres] = useState('');
+  const [tiempo, setTiempo] = useState('');
+
+  // === Estado: Ampliación ===
+  const [montoAdicional, setMontoAdicional] = useState('');
+  const [nuevaTasa, setNuevaTasa] = useState('');
+  const [nuevasCuotas, setNuevasCuotas] = useState('12');
+
+  // Información de solo lectura
+  const dineroPrestado = datosPrestamoOriginal?.montoOriginal || 0;
+  const tasaOriginal = datosPrestamoOriginal?.tasaOriginal || 0;
+  const numeroCuotasOriginal = datosPrestamoOriginal?.numeroCuotasOriginal || 0;
+  const abonoTotal = totalPagadoCuotas;
+
+  // Cálculo de cuotas restantes (proporcional para sin cronograma)
+  const valorCuotaOriginal = datosPrestamoOriginal?.valorCuotaOriginal || 0;
+  const cuotasPagadasProporcional = valorCuotaOriginal > 0
+    ? Math.round((totalPagadoCuotas / valorCuotaOriginal) * 10) / 10
+    : 0;
+  const cuotasRestantes = Math.max(0, Math.ceil(numeroCuotasOriginal - cuotasPagadasProporcional));
+
+  // Interés de liquidación para ampliación
+  const interesLiquidacion = cuotasRestantes > 0
+    ? calcularInteresSimple(dineroPrestado, tasaOriginal, cuotasRestantes).totalInteres
+    : 0;
+  const saldoFavorEstimado = abonoTotal - interesLiquidacion;
+
+  // Total a Pagar reactivo
+  const interes = parseFloat(porcentajeInteres) || 0;
+  const meses = parseInt(tiempo) || 0;
+  const totalBruto = tiempo !== '' && meses > 0
+    ? dineroPrestado + (dineroPrestado * (interes / 100) * meses)
+    : 0;
+  const totalAPagar = Math.max(0, totalBruto - abonoTotal);
 
   useEffect(() => {
     if (open) {
+      setTabActual(0);
       setFechaPago(dayjs().format('YYYY-MM-DD'));
+      setPorcentajeInteres('');
+      setTiempo('');
+      setMontoAdicional('');
+      setNuevaTasa(tasaOriginal.toString());
+      setNuevasCuotas('12');
     }
-  }, [open]);
+  }, [open, tasaOriginal]);
 
-  const handleConfirmar = () => {
-    if (saldoTotalPendiente <= 0) {
-      alert('No hay saldo pendiente para pagar');
+  const handleConfirmarPago = () => {
+    if (totalAPagar <= 0) {
+      alert('Ingrese el interés y el tiempo para calcular el total a pagar');
       return;
     }
-    onConfirmarPago(saldoTotalPendiente, 'saldo_total_sin_cronograma', { fechaPago });
+    onConfirmarPago(totalAPagar, 'saldo_total_sin_cronograma', {
+      fechaPago,
+      dineroPrestado,
+      abonoCliente: totalAPagar,
+      porcentajeInteres: interes,
+      tiempo: meses,
+      totalBruto,
+    });
+    handleCerrar();
+  };
+
+  const handleMontoAdicionalChange = (e) => {
+    const value = e.target.value.replace(/\D/g, '');
+    setMontoAdicional(formatMoney(value));
+  };
+
+  const handleConfirmarAmpliacion = () => {
+    const monto = parseMoney(montoAdicional);
+    const tasa = parseFloat(nuevaTasa);
+    const cuotas = parseInt(nuevasCuotas);
+
+    if (!monto || monto <= 0) {
+      alert('El monto adicional debe ser mayor a 0');
+      return;
+    }
+    if (!tasa || tasa <= 0) {
+      alert('La tasa de interés debe ser mayor a 0');
+      return;
+    }
+    if (!cuotas || cuotas <= 0) {
+      alert('El número de cuotas debe ser mayor a 0');
+      return;
+    }
+
+    onAplicarAmpliacion({ montoAdicional: monto, nuevaTasa: tasa, nuevasCuotas: cuotas });
     handleCerrar();
   };
 
   const handleCerrar = () => {
+    setPorcentajeInteres('');
+    setTiempo('');
+    setMontoAdicional('');
     onClose();
   };
 
+  const puedeConfirmarPago = totalAPagar > 0;
+
   return (
-    <Dialog open={open} onClose={handleCerrar} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={handleCerrar} maxWidth="md" fullWidth>
       <DialogTitle>
         <Box display="flex" alignItems="center" justifyContent="space-between">
           <Box display="flex" alignItems="center">
@@ -368,60 +454,300 @@ export const DialogoPagarSaldoTotalSinCronograma = ({
         </Box>
       </DialogTitle>
       <DialogContent dividers>
-        <Alert severity="error" sx={{ mb: 3 }}>
-          <strong>Liquidación total:</strong> Esta acción pagará el saldo total pendiente
-          y liquidará completamente el préstamo.
-        </Alert>
 
-        <Card variant="outlined" sx={{ mb: 3, backgroundColor: 'error.50', border: 2, borderColor: 'error.main' }}>
-          <CardContent>
-            <Grid container spacing={2}>
-              <Grid item xs={6}>
-                <Typography variant="body2" color="text.secondary">Total del Préstamo</Typography>
-                <Typography variant="h6">${formatMoney(datosPrestamoOriginal?.saldoTotalOriginal || 0)}</Typography>
+        <Tabs
+          value={tabActual}
+          onChange={(e, v) => setTabActual(v)}
+          variant="fullWidth"
+          sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab
+            icon={<WalletIcon />}
+            iconPosition="start"
+            label="Pagar Saldo"
+          />
+          <Tab
+            icon={<AddIcon />}
+            iconPosition="start"
+            label="Ampliación del Crédito"
+          />
+        </Tabs>
+
+        {/* ==================== TAB 0: PAGAR SALDO ==================== */}
+        {tabActual === 0 && (
+          <>
+            {/* PASO 1: Información de solo lectura */}
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Información del Préstamo
+            </Typography>
+            <Card variant="outlined" sx={{ mb: 3, backgroundColor: 'grey.50' }}>
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" color="text.secondary">Dinero Prestado</Typography>
+                    <Typography variant="h6" color="primary.main">
+                      ${formatMoney(dineroPrestado)}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" color="text.secondary">Abono Total</Typography>
+                    <Typography variant="h6" color="success.main">
+                      ${formatMoney(abonoTotal)}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* PASO 2: Inputs editables */}
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Condiciones del Pago
+            </Typography>
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Interés (%)"
+                  type="number"
+                  value={porcentajeInteres}
+                  onChange={(e) => setPorcentajeInteres(e.target.value)}
+                  placeholder="Ej: 5, 10, 15..."
+                  InputProps={{ endAdornment: <Typography sx={{ ml: 1 }}>%</Typography> }}
+                />
               </Grid>
-              <Grid item xs={6}>
-                <Typography variant="body2" color="text.secondary">Ya Pagado</Typography>
-                <Typography variant="h6" color="success.main">${formatMoney(totalPagadoCuotas)}</Typography>
-              </Grid>
-              <Grid item xs={12}>
-                <Divider sx={{ my: 1 }} />
-                <Typography variant="body2" color="text.secondary">Saldo a Pagar</Typography>
-                <Typography variant="h3" color="error.main" sx={{ fontWeight: 'bold' }}>
-                  ${formatMoney(saldoTotalPendiente)}
-                </Typography>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Tiempo (meses)"
+                  type="number"
+                  value={tiempo}
+                  onChange={(e) => setTiempo(e.target.value)}
+                  placeholder="Ej: 1, 6, 9..."
+                />
               </Grid>
             </Grid>
-          </CardContent>
-        </Card>
 
-        <TextField
-          fullWidth
-          type="date"
-          label="Fecha de Pago"
-          value={fechaPago}
-          onChange={(e) => setFechaPago(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-          sx={{ mb: 2 }}
-        />
+            {/* PASO 3: Selector de fecha */}
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Fecha del Pago
+            </Typography>
+            <TextField
+              fullWidth
+              type="date"
+              label="Fecha de Pago"
+              value={fechaPago}
+              onChange={(e) => setFechaPago(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              sx={{ mb: 3 }}
+            />
 
-        <Alert severity="warning">
-          <Typography variant="body2">
-            <strong>Confirme que desea pagar el saldo total de ${formatMoney(saldoTotalPendiente)}</strong>
-          </Typography>
-        </Alert>
+            {/* PASO 4: Total a Pagar (reactivo) */}
+            <Card
+              variant="outlined"
+              sx={{
+                border: 2,
+                borderColor: totalBruto > 0 ? 'error.main' : 'grey.300',
+                backgroundColor: totalBruto > 0 ? 'rgba(211, 47, 47, 0.05)' : 'grey.50',
+              }}
+            >
+              <CardContent>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Total a Pagar
+                </Typography>
+
+                {totalBruto > 0 ? (
+                  <Box>
+                    {/* Total Bruto */}
+                    <Box display="flex" justifyContent="space-between" alignItems="baseline" sx={{ mb: 0.5 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Total Bruto
+                        <Typography component="span" variant="caption" color="text.disabled" sx={{ ml: 0.5 }}>
+                          (${formatMoney(dineroPrestado)} + ${formatMoney(dineroPrestado)} × {interes}% × {meses} {meses === 1 ? 'mes' : 'meses'})
+                        </Typography>
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 'medium', ml: 2, whiteSpace: 'nowrap' }}>
+                        ${formatMoney(totalBruto)}
+                      </Typography>
+                    </Box>
+
+                    {/* − Abono Total */}
+                    <Box display="flex" justifyContent="space-between" alignItems="baseline" sx={{ mb: 1 }}>
+                      <Typography variant="body2" color="success.main">− Abono Total</Typography>
+                      <Typography variant="body1" color="success.main" sx={{ ml: 2 }}>
+                        ${formatMoney(abonoTotal)}
+                      </Typography>
+                    </Box>
+
+                    <Divider sx={{ mb: 1 }} />
+
+                    {/* = Total a Pagar */}
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography variant="subtitle1" color="error.main" sx={{ fontWeight: 'bold' }}>
+                        = Total a Pagar
+                      </Typography>
+                      <Typography variant="h5" color="error.main" sx={{ fontWeight: 'bold' }}>
+                        ${formatMoney(totalAPagar)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ) : (
+                  <>
+                    <Typography variant="h4" color="text.disabled" sx={{ fontWeight: 'bold' }}>
+                      $0
+                    </Typography>
+                    <Typography variant="caption" color="text.disabled">
+                      Ingrese el interés y el tiempo para ver el total
+                    </Typography>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {/* ==================== TAB 1: AMPLIACIÓN DEL CRÉDITO ==================== */}
+        {tabActual === 1 && (
+          <>
+            <Alert severity="warning" sx={{ mb: 3 }}>
+              Al hacer clic en "Iniciar Ampliación", se abrirá el proceso de liquidación.
+              El saldo a favor se aplicará automáticamente a las nuevas cuotas.
+            </Alert>
+
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Configurar Ampliación del Préstamo
+            </Typography>
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Monto Adicional"
+                  value={montoAdicional}
+                  onChange={handleMontoAdicionalChange}
+                  placeholder="0"
+                  InputProps={{ startAdornment: <Typography sx={{ mr: 1 }}>$</Typography> }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Nueva Tasa de Interés (%)"
+                  type="number"
+                  value={nuevaTasa}
+                  onChange={(e) => setNuevaTasa(e.target.value)}
+                  inputProps={{ step: '0.1', min: '0' }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Número de Cuotas"
+                  type="number"
+                  value={nuevasCuotas}
+                  onChange={(e) => setNuevasCuotas(e.target.value)}
+                  inputProps={{ min: '1' }}
+                />
+              </Grid>
+            </Grid>
+
+            <Divider sx={{ my: 2 }} />
+
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Información del Préstamo
+                </Typography>
+                <Grid container spacing={1}>
+                  <Grid item xs={6}>
+                    <Typography variant="body2">
+                      <strong>Monto vigente:</strong> ${formatMoney(dineroPrestado)}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2">
+                      <strong>Tasa actual:</strong> {tasaOriginal}%
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2">
+                      <strong>Cuotas totales:</strong> {numeroCuotasOriginal}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2">
+                      <strong>Cuotas pagadas:</strong> {cuotasPagadasProporcional}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2">
+                      <strong>Cuotas restantes:</strong> {cuotasRestantes}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2">
+                      <strong>Abono Total:</strong>{' '}
+                      <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>
+                        ${formatMoney(abonoTotal)}
+                      </span>
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Divider sx={{ my: 1 }} />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2">
+                      <strong>Intereses (Liquidación):</strong>{' '}
+                      <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>
+                        ${formatMoney(interesLiquidacion)}
+                      </span>
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      (Monto × Tasa × Cuotas restantes)
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2">
+                      <strong>Saldo a Favor Estimado:</strong>{' '}
+                      <span style={{
+                        color: saldoFavorEstimado >= 0 ? '#2e7d32' : '#d32f2f',
+                        fontWeight: 'bold'
+                      }}>
+                        ${formatMoney(saldoFavorEstimado)}
+                      </span>
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      (Abono Total - Intereses)
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </>
+        )}
+
       </DialogContent>
       <DialogActions sx={{ p: 2 }}>
         <Button onClick={handleCerrar} color="inherit">Cancelar</Button>
-        <Button
-          onClick={handleConfirmar}
-          variant="contained"
-          color="error"
-          disabled={saldoTotalPendiente <= 0}
-          startIcon={<WalletIcon />}
-        >
-          Pagar ${formatMoney(saldoTotalPendiente)}
-        </Button>
+        {tabActual === 0 && (
+          <Button
+            onClick={handleConfirmarPago}
+            variant="contained"
+            color="error"
+            disabled={!puedeConfirmarPago}
+            startIcon={<WalletIcon />}
+          >
+            Pagar ${formatMoney(totalAPagar)}
+          </Button>
+        )}
+        {tabActual === 1 && (
+          <Button
+            onClick={handleConfirmarAmpliacion}
+            variant="contained"
+            color="primary"
+            startIcon={<LiquidateIcon />}
+          >
+            Iniciar Ampliación (con Liquidación)
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );
@@ -583,6 +909,7 @@ const BotonesPagoSinCronograma = ({
   interesAcumulado,
   onPagoCuota,
   onPagoInteres,
+  onAplicarAmpliacion,
 }) => {
   const [dialogoCuotaAbierto, setDialogoCuotaAbierto] = useState(false);
   const [dialogoInteresAbierto, setDialogoInteresAbierto] = useState(false);
@@ -704,6 +1031,7 @@ const BotonesPagoSinCronograma = ({
         datosPrestamoOriginal={datosPrestamoOriginal}
         totalPagadoCuotas={totalPagadoCuotas}
         onConfirmarPago={handleConfirmarPago}
+        onAplicarAmpliacion={onAplicarAmpliacion}
       />
     </>
   );

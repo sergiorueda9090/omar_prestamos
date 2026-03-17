@@ -1437,6 +1437,7 @@ export const PrestamoSinCronograma = ({
   interesAcumulado,
   onPagoCuota,
   onPagoInteres,
+  iniciarProcesoAmpliacion,
 }) => {
   const [dialogoConfirmarPlazoAbierto, setDialogoConfirmarPlazoAbierto] = useState(false);
   const [plazoTemporal, setPlazoTemporal] = useState('');
@@ -1488,6 +1489,7 @@ export const PrestamoSinCronograma = ({
         interesAcumulado={interesAcumulado || 0}
         onPagoCuota={onPagoCuota}
         onPagoInteres={onPagoInteres}
+        onAplicarAmpliacion={iniciarProcesoAmpliacion}
       />
 
       <Card sx={{ mb: 3, backgroundColor: 'info.50' }}>
@@ -1782,6 +1784,7 @@ export const TabGestion = ({
               interesAcumulado={interesAcumulado}
               onPagoCuota={onPagoCuotaSinCronograma}
               onPagoInteres={onPagoInteresSinCronograma}
+              iniciarProcesoAmpliacion={iniciarProcesoAmpliacion}
             />
           ) : (
             <PrestamoConCronograma
