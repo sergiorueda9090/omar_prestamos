@@ -27,6 +27,7 @@ export const RouterMain = () => {
             <Route path="/users"            element={<PrivateRoute><Users /></PrivateRoute>} />
             <Route path="/clientes"         element={<PrivateRoute><Clientes /></PrivateRoute>} />
             <Route path="/clientestest"     element={<PrivateRoute><ClientesTestMejorado /></PrivateRoute>} />
+            <Route path="/clientestest/:id" element={<PrivateRoute><ClientesTestMejorado /></PrivateRoute>} />
             <Route path="/old"              element={<PrivateRoute><ClientesTest /></PrivateRoute>} />
             <Route path="/clientes/:id"     element={<PrivateRoute><TarjetaPrestamo /></PrivateRoute>} />
             <Route path="/signUp"           element={<PrivateRoute><SingUp /></PrivateRoute>} />

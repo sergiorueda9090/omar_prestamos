@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { useParams } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -6,18 +8,30 @@ import {
   Typography,
   Tabs,
   Tab,
+  Button,
 } from '@mui/material';
 import {
   Settings as SettingsIcon,
   AccountBalance as AccountBalanceIcon,
   History as HistoryIcon,
+  ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material';
 
-// Custom hook
-import useLoanManager from './hooks/useLoanManager';
+import { MyContext } from "../../App";
+
+// Redux actions
+import {
+  actionObtenerPrestamo,
+  actionClearData,
+  actionGetAllPrestamos,
+} from '../../store/prestamosTestStore/prestamosTestStoreActions';
+import { setTab, clearData } from '../../store/prestamosTestStore/prestamosTestStore';
 
 // Components
 import TabConfiguracion from './components/TabConfiguracion';
+import TableData from './components/TableData';
+import FiltrosData from './components/FiltrosData';
+import { BackdropComponent } from "../Clientes/components/Backdrop/Backdrop";
 import {
   TabGestion,
   HistorialSeguimiento,
@@ -25,150 +39,176 @@ import {
   DialogoCalcularPagoSaldo,
 } from './components/OtherComponents';
 
-const ClientesTest = () => {
-  const [tabActual, setTabActual] = useState(0);
+const ClientesTestMejorado = () => {
+  const dispatch = useDispatch();
+  const context = useContext(MyContext);
+  const { id: paramId } = useParams();
 
-  const {
-    config,
-    updateConfig,
-    handleMontoChange,
-    cuotas,
-    datosPrestamoOriginal,
-    resumenActual,
-    prestamoGenerado,
-    plazoEditableSinCronograma,
-    setPlazoEditableSinCronograma,
-    historial,
-    interesAcumulado,
-    cuotasConPagos,
-    cuotasCompletamentePagadas,
-    datosPrestamo,
-    dialogos,
-    setDialogos,
-    cerrarDialogoLiquidacion,
-    generarPlanCuotas,
-    recalcularPrestamoSinCronograma,
-    handleAplicarPago,
-    handleCambiarFecha,
-    handleEliminarPago,
-    iniciarProcesoAmpliacion,
-    confirmarLiquidacionYAmpliar,
-    handleConfirmarPagoCalculado,
-    // Funciones y estados para préstamos sin cronograma
-    totalPagadoCuotasSinCronograma,
-    handlePagoCuotaSinCronograma,
-    handlePagoInteresSinCronograma,
-    // Pagos de intereses para mostrar en cronograma
-    pagosIntereses,
-    handleEliminarPagoInteres,
-  } = useLoanManager();
+  // Estado local: controla si mostramos el formulario de creacion o la lista
+  const [modoCrear, setModoCrear] = useState(false);
 
-  const handleGenerarPlan = () => {
-    const success = generarPlanCuotas();
-    if (success) {
-      setTabActual(1);
+  // Leer estado de Redux
+  const { tabActual, prestamoGenerado } = useSelector(state => state.prestamosTestStore);
+
+  useEffect(() => {
+    context.setIsHideSideBarAndHeader(false);
+    window.scrollTo(0, 0);
+
+    if (paramId) {
+      // Si hay ID en la URL, cargar el prestamo y mostrar tab de gestion
+      dispatch(actionObtenerPrestamo(paramId));
+      dispatch(setTab(0)); // Tab 0 = Gestion (en modo detalle)
+    } else {
+      // Si no hay ID, cargar la lista
+      dispatch(actionGetAllPrestamos());
     }
+
+    return () => {
+      dispatch(actionClearData());
+    };
+  }, [paramId]);
+
+  // Abrir formulario de creacion
+  const handleCrearNuevo = () => {
+    dispatch(clearData());
+    setModoCrear(true);
   };
 
-  const handleTabChange = (event, newValue) => {
-    setTabActual(newValue);
+  // Volver a la lista
+  const handleVolverALista = () => {
+    dispatch(clearData());
+    dispatch(actionGetAllPrestamos());
+    setModoCrear(false);
+  };
+
+  // =========================================================================
+  // DECIDIR QUE VISTA MOSTRAR
+  // =========================================================================
+  // 1. modoCrear (y NO prestamoGenerado) → formulario de creacion
+  // 2. paramId o prestamoGenerado       → detalle (solo Gestion + Historial)
+  // 3. ninguno                          → lista de prestamos
+  // =========================================================================
+
+  const mostrarFormularioCreacion = modoCrear && !prestamoGenerado;
+  const mostrarDetalle = paramId || prestamoGenerado;
+
+  // =========================================================================
+  // VISTA 1: LISTADO DE PRESTAMOS (tabla + filtros)
+  // =========================================================================
+  if (!mostrarFormularioCreacion && !mostrarDetalle) {
+    return (
+      <>
+        <div className="right-content w-100">
+          <div className="card shadow border-0 p-3 mt-4">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 className="hd">Gestión de Préstamos</h3>
+              <Button onClick={handleCrearNuevo} className="btn-blue" variant="contained">
+                Crear Préstamo
+              </Button>
+            </div>
+
+            <FiltrosData />
+            <TableData />
+          </div>
+        </div>
+        <BackdropComponent />
+      </>
+    );
+  }
+
+  // =========================================================================
+  // VISTA 2: FORMULARIO DE CREACION (solo Tab Configuracion)
+  // Una vez creado el prestamo, prestamoGenerado=true y pasa a Vista 3.
+  // =========================================================================
+  if (mostrarFormularioCreacion) {
+    return (
+      <>
+        <div className="right-content w-100">
+          <Container maxWidth="xl" sx={{ py: 4 }}>
+            <Button
+              variant="outlined"
+              startIcon={<ArrowBackIcon />}
+              onClick={handleVolverALista}
+              sx={{ mb: 2 }}
+            >
+              Volver al Listado
+            </Button>
+
+            <Paper elevation={3} sx={{ p: 3 }}>
+              <Typography variant="h4" gutterBottom color="primary" sx={{ mb: 3 }}>
+                Crear Nuevo Préstamo
+              </Typography>
+              <TabConfiguracion />
+            </Paper>
+          </Container>
+        </div>
+        <BackdropComponent />
+      </>
+    );
+  }
+
+  // =========================================================================
+  // VISTA 3: DETALLE DEL PRESTAMO (solo Gestion + Historial, NO editable)
+  // Se muestra cuando:
+  //   - Se acaba de crear un prestamo (prestamoGenerado=true)
+  //   - Se cargo un prestamo existente por URL o desde la tabla
+  // =========================================================================
+  const handleTabChangeDetalle = (event, newValue) => {
+    dispatch(setTab(newValue));
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Paper elevation={3} sx={{ p: 3 }}>
-        <Typography variant="h4" gutterBottom color="primary" sx={{ mb: 3 }}>
-          Gestión de Préstamos
-        </Typography>
+    <>
+      <div className="right-content w-100">
+        <Container maxWidth="xl" sx={{ py: 4 }}>
 
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-          <Tabs
-            value={tabActual}
-            onChange={handleTabChange}
-            variant="fullWidth"
-            indicatorColor="primary"
-            textColor="primary"
+          {/* Boton volver a la lista */}
+          <Button
+            variant="outlined"
+            startIcon={<ArrowBackIcon />}
+            onClick={handleVolverALista}
+            sx={{ mb: 2 }}
           >
-            <Tab
-              icon={<SettingsIcon />}
-              iconPosition="start"
-              label="Configuración"
-            />
-            <Tab
-              icon={<AccountBalanceIcon />}
-              iconPosition="start"
-              label="Gestión de Cuotas"
-              disabled={!prestamoGenerado}
-            />
-            <Tab
-              icon={<HistoryIcon />}
-              iconPosition="start"
-              label="Historial"
-              disabled={!prestamoGenerado}
-            />
-          </Tabs>
-        </Box>
+            Volver al Listado
+          </Button>
 
-        {tabActual === 0 && (
-          <TabConfiguracion
-            config={config}
-            updateConfig={updateConfig}
-            handleMontoChange={handleMontoChange}
-            onGenerarPlan={handleGenerarPlan}
-            datosPrestamo={datosPrestamo}
-          />
-        )}
+          <Paper elevation={3} sx={{ p: 3 }}>
+            <Typography variant="h4" gutterBottom color="primary" sx={{ mb: 3 }}>
+              Gestión de Préstamos
+            </Typography>
 
-        {tabActual === 1 && (
-          <TabGestion
-            datosPrestamoOriginal={datosPrestamoOriginal}
-            datosPrestamo={datosPrestamo}
-            cuotasConPagos={cuotasConPagos}
-            interesAcumulado={interesAcumulado}
-            plazoEditableSinCronograma={plazoEditableSinCronograma}
-            setPlazoEditableSinCronograma={setPlazoEditableSinCronograma}
-            recalcularPrestamoSinCronograma={recalcularPrestamoSinCronograma}
-            resumenActual={resumenActual}
-            cuotas={cuotas}
-            cuotasCompletamentePagadas={cuotasCompletamentePagadas}
-            handleAplicarPago={handleAplicarPago}
-            handleCambiarFecha={handleCambiarFecha}
-            handleEliminarPago={handleEliminarPago}
-            iniciarProcesoAmpliacion={iniciarProcesoAmpliacion}
-            onAbrirCalculadora={() => setDialogos(prev => ({ ...prev, calcularPago: true }))}
-            totalPagadoCuotasSinCronograma={totalPagadoCuotasSinCronograma}
-            onPagoCuotaSinCronograma={handlePagoCuotaSinCronograma}
-            onPagoInteresSinCronograma={handlePagoInteresSinCronograma}
-            pagosIntereses={pagosIntereses}
-            onEliminarPagoInteres={handleEliminarPagoInteres}
-          />
-        )}
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+              <Tabs
+                value={tabActual}
+                onChange={handleTabChangeDetalle}
+                variant="fullWidth"
+                indicatorColor="primary"
+                textColor="primary"
+              >
+                <Tab
+                  icon={<AccountBalanceIcon />}
+                  iconPosition="start"
+                  label="Gestión de Cuotas"
+                />
+                <Tab
+                  icon={<HistoryIcon />}
+                  iconPosition="start"
+                  label="Historial"
+                />
+              </Tabs>
+            </Box>
 
-        {tabActual === 2 && (
-          <HistorialSeguimiento
-            datosPrestamoOriginal={datosPrestamoOriginal}
-            historial={historial}
-            cuotas={cuotas}
-            cuotasConPagos={cuotasConPagos}
-          />
-        )}
-      </Paper>
+            {tabActual === 0 && <TabGestion />}
+            {tabActual === 1 && <HistorialSeguimiento />}
+          </Paper>
+        </Container>
+      </div>
 
-      <LiquidacionDialog
-        open={dialogos.liquidacion}
-        onClose={cerrarDialogoLiquidacion}
-        prestamoActual={datosPrestamoOriginal}
-        cuotasConPagos={cuotasConPagos}
-        onConfirmarLiquidacion={confirmarLiquidacionYAmpliar}
-      />
-
-      <DialogoCalcularPagoSaldo
-        open={dialogos.calcularPago}
-        onClose={() => setDialogos(prev => ({ ...prev, calcularPago: false }))}
-        onConfirmarPago={handleConfirmarPagoCalculado}
-      />
-    </Container>
+      <LiquidacionDialog />
+      <DialogoCalcularPagoSaldo />
+      <BackdropComponent />
+    </>
   );
 };
 
-export default ClientesTest;
+export default ClientesTestMejorado;
