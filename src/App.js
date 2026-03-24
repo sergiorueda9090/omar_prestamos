@@ -2,16 +2,10 @@
 import './App.css';
 import './responsive.css';
 import "bootstrap/dist/css/bootstrap.min.css";
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-import { Dashboard }    from './pages/Dashboard';
-import { Users }        from './pages/Users';
+import { BrowserRouter } from 'react-router-dom';
 import { Header }       from './components/Header';
 import { Sidebar }      from './components/Sidebar';
-import {Login}          from './pages/Login';
-import { SingUp }       from './pages/SignUp';
 import React, { createContext, useEffect,useState } from 'react';
-import PrivateRoute from './routes/PrivateRoute';
 import { RouterMain } from './routes/RouterMain';
 
 const MyContext = createContext();

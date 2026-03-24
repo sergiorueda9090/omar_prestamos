@@ -8,26 +8,29 @@ import Pagination from '@mui/material/Pagination';
 import Tooltip from '@mui/material/Tooltip';
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { MdBlockFlipped } from "react-icons/md";
 import {
   actionGetAllPrestamos,
   actionObtenerPrestamo,
   actionEliminarPrestamo,
+  actionMarcarPerdido,
 } from '../../../store/prestamosTestStore/prestamosTestStoreActions';
 import { setTab } from '../../../store/prestamosTestStore/prestamosTestStore';
 import { confirmarEliminacion } from '../../../components/Alerts/AlertasCrud';
+import Swal from "sweetalert2";
 
-const TableData = () => {
+const TableData = ({ estadoFiltro = '' }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { prestamosArray, count, totalPages, currentPage } = useSelector(state => state.prestamosTestStore);
 
   useEffect(() => {
-    dispatch(actionGetAllPrestamos(currentPage));
-  }, [dispatch, currentPage]);
+    dispatch(actionGetAllPrestamos(currentPage, estadoFiltro));
+  }, [dispatch, currentPage, estadoFiltro]);
 
   // Cambiar de pagina
   const handlePageChange = (_, newPage) => {
-    dispatch(actionGetAllPrestamos(newPage));
+    dispatch(actionGetAllPrestamos(newPage, estadoFiltro));
   };
 
   // Ver detalle (carga el prestamo en Redux y cambia al tab de gestion)
@@ -38,7 +41,7 @@ const TableData = () => {
 
   // Ver tarjeta (navegar a la ruta con ID)
   const handleVerTarjeta = (clienteId) => {
-    navigate(`/clientestest/${clienteId}`);
+    navigate(`/clientes/${clienteId}`);
   };
 
   // Ver info rapida (carga y va al tab de historial)
@@ -63,10 +66,26 @@ const TableData = () => {
 
   // Chip de estado
   const getEstadoBadge = (estado) => {
-    if (estado === 'pagado') {
-      return <span className="badge bg-success">Pagado</span>;
-    }
+    if (estado === 'pagado') return <span className="badge bg-success">Pagado</span>;
+    if (estado === 'perdido') return <span className="badge bg-danger">Perdido</span>;
     return <span className="badge bg-primary">Vigente</span>;
+  };
+
+  // Marcar como perdido
+  const handleMarcarPerdido = async (clienteId) => {
+    const result = await Swal.fire({
+      title: "¿Marcar como perdido?",
+      text: "Este cliente será marcado como perdido.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Sí, marcar",
+      cancelButtonText: "Cancelar",
+    });
+    if (result.isConfirmed) {
+      dispatch(actionMarcarPerdido(clienteId));
+    }
   };
 
   return (
@@ -86,7 +105,7 @@ const TableData = () => {
             <th># Cuotas</th>
             <th>Valor Cuota</th>
             <th>Saldo Total</th>
-            <th>Acciones</th>
+            <th style={{ minWidth: '260px' }}>Acciones</th>
           </tr>
         </thead>
 
@@ -107,7 +126,7 @@ const TableData = () => {
                 <td>${formatCurrency(cliente.valor_cuota)}</td>
                 <td>${formatCurrency(cliente.saldo_total_pagar)}</td>
                 <td>
-                  <div className="actions d-flex align-items-center gap-2">
+                  <div className="actions d-flex align-items-center gap-2" style={{ flexWrap: 'nowrap' }}>
 
                     {/* Ver Info (historial) */}
                     <Tooltip title="Ver Detalles">
@@ -129,6 +148,15 @@ const TableData = () => {
                         <FaRegAddressCard />
                       </Button>
                     </Tooltip>
+
+                    {/* Marcar como perdido (solo si está vigente) */}
+                    {cliente.estado === 'vigente' && (
+                      <Tooltip title="Marcar como Perdido">
+                        <Button className="warning" color="warning" onClick={() => handleMarcarPerdido(cliente.id)}>
+                          <MdBlockFlipped />
+                        </Button>
+                      </Tooltip>
+                    )}
 
                     {/* Eliminar */}
                     <Tooltip title="Eliminar Cliente">

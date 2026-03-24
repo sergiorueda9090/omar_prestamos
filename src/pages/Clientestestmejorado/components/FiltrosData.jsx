@@ -14,7 +14,7 @@ import {
   actionGetAllFilterData,
 } from '../../../store/prestamosTestStore/prestamosTestStoreActions';
 
-const FiltrosData = () => {
+const FiltrosData = ({ estadoFiltro = '', onFilterChange }) => {
   const dispatch = useDispatch();
 
   const [searchText, setSearchText] = useState('');
@@ -24,7 +24,9 @@ const FiltrosData = () => {
   // Buscar por texto (nombre o tarjeta)
   const handleSearch = () => {
     if (searchText.trim()) {
-      dispatch(actionGetAllFilterData(1, { search: searchText }));
+      const filters = { search: searchText, estado: estadoFiltro };
+      dispatch(actionGetAllFilterData(1, filters));
+      if (onFilterChange) onFilterChange(filters);
     }
   };
 
@@ -35,7 +37,9 @@ const FiltrosData = () => {
 
   // Filtrar por rango de fechas
   const handleFilterByDate = () => {
-    dispatch(actionGetAllFilterData(1, { startDate, endDate }));
+    const filters = { startDate, endDate, estado: estadoFiltro };
+    dispatch(actionGetAllFilterData(1, filters));
+    if (onFilterChange) onFilterChange(filters);
   };
 
   // Limpiar todos los filtros
@@ -43,7 +47,8 @@ const FiltrosData = () => {
     setSearchText('');
     setStartDate('');
     setEndDate('');
-    dispatch(actionGetAllPrestamos(1));
+    dispatch(actionGetAllPrestamos(1, estadoFiltro));
+    if (onFilterChange) onFilterChange({});
   };
 
   return (

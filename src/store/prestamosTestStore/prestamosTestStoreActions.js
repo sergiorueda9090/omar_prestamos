@@ -76,15 +76,18 @@ export const actionFormStore = (data) => {
 // Endpoint: GET /clientes/api/v2/?page=1
 // =============================================================================
 
-export const actionGetAllPrestamos = (page = 1) => {
+export const actionGetAllPrestamos = (page = 1, estado = '') => {
   return async (dispatch, getState) => {
     await dispatch(handleShowBackDrop());
 
     const { authStore } = getState();
 
+    const params = new URLSearchParams({ page });
+    if (estado) params.append("estado", estado);
+
     const options = {
       method: 'GET',
-      url: `${dominio}${path}?page=${page}`,
+      url: `${dominio}${path}?${params.toString()}`,
       headers: {
         Authorization: `Bearer ${authStore.token}`
       }
@@ -176,11 +179,14 @@ export const actionCrearPrestamo = () => {
         // Cambiar al tab de gestion (tab 0 en vista detalle)
         await dispatch(setTab(0));
 
+        // Ocultar backdrop ANTES de la alerta para que no la tape
+        await dispatch(handleHideBackDrop());
         await alertaCreado();
         return true;
       }
     } catch (error) {
       console.error("Error al crear prestamo:", error);
+      await dispatch(handleHideBackDrop());
       if (error.response && error.response.data) {
         const errores = error.response.data;
         let mensaje = "";
@@ -198,8 +204,6 @@ export const actionCrearPrestamo = () => {
         await alertaError();
       }
       return false;
-    } finally {
-      await dispatch(handleHideBackDrop());
     }
   };
 };
@@ -235,10 +239,11 @@ export const actionObtenerPrestamo = (clienteId) => {
       }
     } catch (error) {
       console.error("Error al obtener prestamo:", error);
-      await alertaError("No se pudo cargar el préstamo");
-    } finally {
       await dispatch(handleHideBackDrop());
+      await alertaError("No se pudo cargar el préstamo");
+      return;
     }
+    await dispatch(handleHideBackDrop());
   };
 };
 
@@ -273,15 +278,18 @@ export const actionPagarCuota = (monto, fechaPago) => {
       if (response.status === 200) {
         const datosRedux = mapearRespuestaARedux(response.data);
         await dispatch(showData(datosRedux));
+        await dispatch(handleHideBackDrop());
         await alertaCreado();
+        return;
       }
     } catch (error) {
       console.error("Error al registrar pago:", error);
       const msg = error.response?.data?.error || "Error al registrar pago";
-      await alertaError(msg);
-    } finally {
       await dispatch(handleHideBackDrop());
+      await alertaError(msg);
+      return;
     }
+    await dispatch(handleHideBackDrop());
   };
 };
 
@@ -315,15 +323,18 @@ export const actionPagarCuotaSinCronograma = (monto, fechaPago) => {
       if (response.status === 200) {
         const datosRedux = mapearRespuestaARedux(response.data);
         await dispatch(showData(datosRedux));
+        await dispatch(handleHideBackDrop());
         await alertaCreado();
+        return;
       }
     } catch (error) {
       console.error("Error al registrar pago sin cronograma:", error);
       const msg = error.response?.data?.error || "Error al registrar pago";
-      await alertaError(msg);
-    } finally {
       await dispatch(handleHideBackDrop());
+      await alertaError(msg);
+      return;
     }
+    await dispatch(handleHideBackDrop());
   };
 };
 
@@ -362,15 +373,18 @@ export const actionPagarInteres = (monto, fecha, descripcion = '') => {
       if (response.status === 200) {
         const datosRedux = mapearRespuestaARedux(response.data);
         await dispatch(showData(datosRedux));
+        await dispatch(handleHideBackDrop());
         await alertaCreado();
+        return;
       }
     } catch (error) {
       console.error("Error al registrar pago de interés:", error);
       const msg = error.response?.data?.error || "Error al registrar interés";
-      await alertaError(msg);
-    } finally {
       await dispatch(handleHideBackDrop());
+      await alertaError(msg);
+      return;
     }
+    await dispatch(handleHideBackDrop());
   };
 };
 
@@ -401,14 +415,17 @@ export const actionEliminarPagoInteres = (pagoId) => {
       if (response.status === 200) {
         const datosRedux = mapearRespuestaARedux(response.data);
         await dispatch(showData(datosRedux));
+        await dispatch(handleHideBackDrop());
         await alertaEliminado("Pago de interés eliminado");
+        return;
       }
     } catch (error) {
       console.error("Error al eliminar pago de interés:", error);
-      await alertaError("Error al eliminar pago de interés");
-    } finally {
       await dispatch(handleHideBackDrop());
+      await alertaError("Error al eliminar pago de interés");
+      return;
     }
+    await dispatch(handleHideBackDrop());
   };
 };
 
@@ -447,15 +464,18 @@ export const actionPagarSaldoTotal = (porcentajeInteres, tiempo, fechaPago) => {
       if (response.status === 200) {
         const datosRedux = mapearRespuestaARedux(response.data);
         await dispatch(showData(datosRedux));
+        await dispatch(handleHideBackDrop());
         await alertaCreado();
+        return;
       }
     } catch (error) {
       console.error("Error al pagar saldo total:", error);
       const msg = error.response?.data?.error || "Error al pagar saldo total";
-      await alertaError(msg);
-    } finally {
       await dispatch(handleHideBackDrop());
+      await alertaError(msg);
+      return;
     }
+    await dispatch(handleHideBackDrop());
   };
 };
 
@@ -488,14 +508,17 @@ export const actionCambiarFechaCuota = (cuotaId, nuevaFecha) => {
       if (response.status === 200) {
         const datosRedux = mapearRespuestaARedux(response.data);
         await dispatch(showData(datosRedux));
+        await dispatch(handleHideBackDrop());
         await alertaActualizado();
+        return;
       }
     } catch (error) {
       console.error("Error al cambiar fecha:", error);
-      await alertaError("Error al cambiar fecha de cuota");
-    } finally {
       await dispatch(handleHideBackDrop());
+      await alertaError("Error al cambiar fecha de cuota");
+      return;
     }
+    await dispatch(handleHideBackDrop());
   };
 };
 
@@ -526,14 +549,17 @@ export const actionEliminarPagoCuota = (cuotaId) => {
       if (response.status === 200) {
         const datosRedux = mapearRespuestaARedux(response.data);
         await dispatch(showData(datosRedux));
+        await dispatch(handleHideBackDrop());
         await alertaEliminado("Pago de cuota eliminado");
+        return;
       }
     } catch (error) {
       console.error("Error al eliminar pago de cuota:", error);
-      await alertaError("Error al eliminar pago de cuota");
-    } finally {
       await dispatch(handleHideBackDrop());
+      await alertaError("Error al eliminar pago de cuota");
+      return;
     }
+    await dispatch(handleHideBackDrop());
   };
 };
 
@@ -572,15 +598,18 @@ export const actionAmpliarPrestamo = (montoAdicional, nuevaTasa, nuevasCuotas) =
       if (response.status === 200) {
         const datosRedux = mapearRespuestaARedux(response.data);
         await dispatch(showData(datosRedux));
+        await dispatch(handleHideBackDrop());
         await alertaCreado();
+        return;
       }
     } catch (error) {
       console.error("Error al ampliar préstamo:", error);
       const msg = error.response?.data?.error || "Error al ampliar préstamo";
-      await alertaError(msg);
-    } finally {
       await dispatch(handleHideBackDrop());
+      await alertaError(msg);
+      return;
     }
+    await dispatch(handleHideBackDrop());
   };
 };
 
@@ -615,15 +644,18 @@ export const actionCambiarPlazo = (nuevaDuracion) => {
       if (response.status === 200) {
         const datosRedux = mapearRespuestaARedux(response.data);
         await dispatch(showData(datosRedux));
+        await dispatch(handleHideBackDrop());
         await alertaActualizado();
+        return;
       }
     } catch (error) {
       console.error("Error al cambiar plazo:", error);
       const msg = error.response?.data?.error || "Error al cambiar plazo";
-      await alertaError(msg);
-    } finally {
       await dispatch(handleHideBackDrop());
+      await alertaError(msg);
+      return;
     }
+    await dispatch(handleHideBackDrop());
   };
 };
 
@@ -645,6 +677,7 @@ export const actionGetAllFilterData = (page = 1, filters = {}) => {
     if (filters.search)    params.append("search",    filters.search);
     if (filters.startDate) params.append("startDate", filters.startDate);
     if (filters.endDate)   params.append("endDate",   filters.endDate);
+    if (filters.estado)    params.append("estado",    filters.estado);
 
     const options = {
       method: 'GET',
@@ -704,17 +737,19 @@ export const actionEliminarPrestamo = (clienteId) => {
       const response = await axios.request(options);
 
       if (response.status === 200) {
-        // Recargar la lista despues de eliminar
         await dispatch(actionGetAllPrestamos());
+        await dispatch(handleHideBackDrop());
         await alertaEliminado(response.data.mensaje);
+        return;
       } else {
+        await dispatch(handleHideBackDrop());
         await alertaError();
+        return;
       }
     } catch (error) {
       console.error("Error al eliminar préstamo:", error);
-      await alertaError();
-    } finally {
       await dispatch(handleHideBackDrop());
+      await alertaError();
     }
   };
 };
@@ -727,5 +762,93 @@ export const actionEliminarPrestamo = (clienteId) => {
 export const actionClearData = () => {
   return async (dispatch) => {
     await dispatch(clearData());
+  };
+};
+
+
+// =============================================================================
+// MARCAR COMO PERDIDO
+// =============================================================================
+// Endpoint: POST /clientes/api/v2/<id>/marcar-perdido/
+// =============================================================================
+
+export const actionMarcarPerdido = (clienteId) => {
+  return async (dispatch, getState) => {
+    await dispatch(handleShowBackDrop());
+
+    const { authStore } = getState();
+
+    const options = {
+      method: 'POST',
+      url: `${dominio}${path}${clienteId}/marcar-perdido/`,
+      headers: {
+        Authorization: `Bearer ${authStore.token}`,
+      },
+    };
+
+    try {
+      const response = await axios.request(options);
+
+      if (response.status === 200) {
+        await dispatch(actionGetAllPrestamos());
+        await dispatch(handleHideBackDrop());
+        await alertaActualizado("Cliente marcado como perdido");
+        return;
+      } else {
+        await dispatch(handleHideBackDrop());
+        await alertaError();
+        return;
+      }
+    } catch (error) {
+      console.error("Error al marcar como perdido:", error);
+      await dispatch(handleHideBackDrop());
+      await alertaError();
+    }
+  };
+};
+
+
+// =============================================================================
+// DESCARGAR REPORTE EXCEL
+// =============================================================================
+// Endpoint: GET /clientes/api/v2/exportar/
+// =============================================================================
+
+export const actionDescargarExcel = (filters = {}) => {
+  return async (dispatch, getState) => {
+    await dispatch(handleShowBackDrop());
+
+    const { authStore } = getState();
+
+    const params = new URLSearchParams();
+    if (filters.estado)    params.append("estado",    filters.estado);
+    if (filters.search)    params.append("search",    filters.search);
+    if (filters.startDate) params.append("startDate", filters.startDate);
+    if (filters.endDate)   params.append("endDate",   filters.endDate);
+
+    try {
+      const response = await axios({
+        method: 'GET',
+        url: `${dominio}${path}exportar/?${params.toString()}`,
+        headers: {
+          Authorization: `Bearer ${authStore.token}`,
+        },
+        responseType: 'blob',
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'reporte_clientes_completo.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error al descargar Excel:", error);
+      await alertaError();
+    } finally {
+      await dispatch(handleHideBackDrop());
+    }
   };
 };

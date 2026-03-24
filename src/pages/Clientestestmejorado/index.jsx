@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -24,6 +24,7 @@ import {
   actionObtenerPrestamo,
   actionClearData,
   actionGetAllPrestamos,
+  actionDescargarExcel,
 } from '../../store/prestamosTestStore/prestamosTestStoreActions';
 import { setTab, clearData } from '../../store/prestamosTestStore/prestamosTestStore';
 
@@ -31,7 +32,7 @@ import { setTab, clearData } from '../../store/prestamosTestStore/prestamosTestS
 import TabConfiguracion from './components/TabConfiguracion';
 import TableData from './components/TableData';
 import FiltrosData from './components/FiltrosData';
-import { BackdropComponent } from "../Clientes/components/Backdrop/Backdrop";
+import { BackdropComponent } from "../../components/Backdrop/Backdrop";
 import {
   TabGestion,
   HistorialSeguimiento,
@@ -43,9 +44,22 @@ const ClientesTestMejorado = () => {
   const dispatch = useDispatch();
   const context = useContext(MyContext);
   const { id: paramId } = useParams();
+  const location = useLocation();
+
+  // Detectar filtro de estado desde la URL
+  const getEstadoFromPath = () => {
+    if (location.pathname === '/clientes/vigentes') return 'vigente';
+    if (location.pathname === '/clientes/perdidos') return 'perdido';
+    if (location.pathname === '/clientes/pagos') return 'pagado';
+    return '';
+  };
+  const estadoFiltro = getEstadoFromPath();
 
   // Estado local: controla si mostramos el formulario de creacion o la lista
   const [modoCrear, setModoCrear] = useState(false);
+
+  // Filtros activos para la descarga Excel
+  const [filtrosActivos, setFiltrosActivos] = useState({});
 
   // Leer estado de Redux
   const { tabActual, prestamoGenerado } = useSelector(state => state.prestamosTestStore);
@@ -59,14 +73,14 @@ const ClientesTestMejorado = () => {
       dispatch(actionObtenerPrestamo(paramId));
       dispatch(setTab(0)); // Tab 0 = Gestion (en modo detalle)
     } else {
-      // Si no hay ID, cargar la lista
-      dispatch(actionGetAllPrestamos());
+      // Si no hay ID, cargar la lista (con filtro de estado si aplica)
+      dispatch(actionGetAllPrestamos(1, estadoFiltro));
     }
 
     return () => {
       dispatch(actionClearData());
     };
-  }, [paramId]);
+  }, [paramId, location.pathname]);
 
   // Abrir formulario de creacion
   const handleCrearNuevo = () => {
@@ -77,7 +91,7 @@ const ClientesTestMejorado = () => {
   // Volver a la lista
   const handleVolverALista = () => {
     dispatch(clearData());
-    dispatch(actionGetAllPrestamos());
+    dispatch(actionGetAllPrestamos(1, estadoFiltro));
     setModoCrear(false);
   };
 
@@ -101,14 +115,28 @@ const ClientesTestMejorado = () => {
         <div className="right-content w-100">
           <div className="card shadow border-0 p-3 mt-4">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 className="hd">Gestión de Préstamos</h3>
-              <Button onClick={handleCrearNuevo} className="btn-blue" variant="contained">
-                Crear Préstamo
-              </Button>
+              <h3 className="hd">
+                {estadoFiltro === 'vigente' ? 'Clientes Vigentes' :
+                 estadoFiltro === 'perdido' ? 'Clientes Perdidos' :
+                 estadoFiltro === 'pagado'  ? 'Clientes Pagos' :
+                 'Gestión de Préstamos'}
+              </h3>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <Button
+                  onClick={() => dispatch(actionDescargarExcel({ estado: estadoFiltro, ...filtrosActivos }))}
+                  variant="contained"
+                  color="success"
+                >
+                  Descargar Excel
+                </Button>
+                <Button onClick={handleCrearNuevo} className="btn-blue" variant="contained">
+                  Crear Préstamo
+                </Button>
+              </div>
             </div>
 
-            <FiltrosData />
-            <TableData />
+            <FiltrosData estadoFiltro={estadoFiltro} onFilterChange={setFiltrosActivos} />
+            <TableData estadoFiltro={estadoFiltro} />
           </div>
         </div>
         <BackdropComponent />

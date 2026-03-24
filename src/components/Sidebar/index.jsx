@@ -2,11 +2,6 @@ import React, { useContext, useState } from "react";
 import { Button } from "@mui/material"
 import { MdDashboard } from "react-icons/md";
 import { FaAngleRight } from "react-icons/fa6";
-import { FaProductHunt } from "react-icons/fa6";
-import { FaCartArrowDown } from "react-icons/fa";
-import { MdMessage } from "react-icons/md";
-import { FaBell } from "react-icons/fa";
-import { IoSettingsSharp } from "react-icons/io5";
 import { Link } from "react-router-dom";
 import { IoMdLogOut } from "react-icons/io";
 import { MyContext } from "../../App";
@@ -28,22 +23,17 @@ export const Sidebar = () => {
     const menuItems = [
     { id: 0, label: "Dashboard", icon: <MdDashboard />, path: "/" },
     { id: 1, label: "Usuarios", icon: <FaUsers />, path: "/users" },
-    { id: 2, label: "Clientes", icon: <IoMdPeople />, path: "/clientes" },
-    { id: 2, label: "Clientes Test", icon: <IoMdPeople />, path: "/clientestest" },
     {
-        id: 13,
-        label: "Products",
-        icon: <FaProductHunt />,
+        id: 2,
+        label: "Clientes",
+        icon: <IoMdPeople />,
         submenu: [
-        { label: "Product List", path: "#" },
-        { label: "Product View", path: "#" },
-        { label: "Product Upload", path: "/product/upload" },
+        { label: "Todos", path: "/clientes" },
+        { label: "Vigentes", path: "/clientes/vigentes" },
+        { label: "Perdidos", path: "/clientes/perdidos" },
+        { label: "Pagos", path: "/clientes/pagos" },
         ]
     },
-    { id: 14, label: "Orders", icon: <FaCartArrowDown />, path: "/" },
-    { id: 115, label: "Messages", icon: <MdMessage />, path: "/" },
-    { id: 15, label: "Notifications", icon: <FaBell />, path: "/" },
-    { id: 16, label: "Settings", icon: <IoSettingsSharp />, path: "/" },
     ];
 
     const SidebarMenu = ({ activeTab, isToggleSubmenu, isOpenSubmenu }) => (

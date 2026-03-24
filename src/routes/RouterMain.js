@@ -1,21 +1,14 @@
-import React, {useContext, useEffect, useState} from "react";
+import React from "react";
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Login } from '../pages/Login';
 import { Dashboard } from '../pages/Dashboard';
 import PrivateRoute from './PrivateRoute';
 import { Users } from '../pages/Users';
-import { Clientes } from "../pages/Clientes";
-import ClientesTest from "../pages/ClientesTest";
-
 import ClientesTestMejorado from "../pages/Clientestestmejorado";
-
-
-import { SingUp } from '../pages/SignUp';
 import { useSelector } from 'react-redux';
-import { TarjetaPrestamo } from "../pages/Clientes/TarjetaPrestamo";
 
 export const RouterMain = () => {
-    
+
     const {isLogin} = useSelector(state => state.authStore);
 
     return (
@@ -25,13 +18,11 @@ export const RouterMain = () => {
             <Route path="/"                 element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/dashboard"        element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/users"            element={<PrivateRoute><Users /></PrivateRoute>} />
-            <Route path="/clientes"         element={<PrivateRoute><Clientes /></PrivateRoute>} />
-            <Route path="/clientestest"     element={<PrivateRoute><ClientesTestMejorado /></PrivateRoute>} />
-            <Route path="/clientestest/:id" element={<PrivateRoute><ClientesTestMejorado /></PrivateRoute>} />
-            <Route path="/old"              element={<PrivateRoute><ClientesTest /></PrivateRoute>} />
-            <Route path="/clientes/:id"     element={<PrivateRoute><TarjetaPrestamo /></PrivateRoute>} />
-            <Route path="/signUp"           element={<PrivateRoute><SingUp /></PrivateRoute>} />
-            <Route path="/product/upload"   element={<PrivateRoute><SingUp /></PrivateRoute>} />
+            <Route path="/clientes"           element={<PrivateRoute><ClientesTestMejorado /></PrivateRoute>} />
+            <Route path="/clientes/vigentes" element={<PrivateRoute><ClientesTestMejorado /></PrivateRoute>} />
+            <Route path="/clientes/perdidos" element={<PrivateRoute><ClientesTestMejorado /></PrivateRoute>} />
+            <Route path="/clientes/pagos"    element={<PrivateRoute><ClientesTestMejorado /></PrivateRoute>} />
+            <Route path="/clientes/:id"      element={<PrivateRoute><ClientesTestMejorado /></PrivateRoute>} />
             {/* Ruta 404 opcional */}
             <Route path="*" element={<Navigate to={isLogin ? "/" : "/login"} />} />
         </Routes>
