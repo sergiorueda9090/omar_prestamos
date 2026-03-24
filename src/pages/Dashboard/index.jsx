@@ -1,801 +1,218 @@
-import React, {useContext, useEffect, useState} from "react";
-import { DashboardBox } from "./components/dashboardBox"
-import { FaUserCircle } from "react-icons/fa";
-import { IoMdCart } from "react-icons/io";
-import { HiDotsVertical } from "react-icons/hi";
-import { MdShoppingBag } from "react-icons/md";
-import { GiStarsStack } from "react-icons/gi";
-import { IoIosTimer } from "react-icons/io";
-import { Button } from "@mui/material"
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
-import { Chart } from "react-google-charts";
-
-import FormControl from '@mui/material/FormControl';
-import Select from '@mui/material/Select';
-
-import { FaEye }        from "react-icons/fa";
-import { FaPencilAlt }  from "react-icons/fa";
-import { MdDelete }     from "react-icons/md";
-
-import Pagination from '@mui/material/Pagination';
+import React, { useContext, useEffect } from "react";
+import { useSelector, useDispatch } from "react-redux";
 import { MyContext } from "../../App";
+import { actionGetDashboardStats } from "../../store/dashboardStore/dashboardActions";
+import { BackdropComponent } from "../../components/Backdrop/Backdrop";
 
+// Formatear moneda colombiana
+const fmt = (value) => {
+  const num = parseInt(value) || 0;
+  return `$${num.toLocaleString('es-CO')}`;
+};
 
-{/*
-const options = [
-    'None',
-    'Atria',
-    'Callisto',
-  ];
-*/}
+// Componente Card principal (grande)
+const MainCard = ({ title, value, subtitle, color, icon }) => (
+  <div className="col-md-4 mb-3">
+    <div
+      className="card border-0 shadow-sm h-100"
+      style={{ borderLeft: `4px solid ${color}`, borderLeftStyle: 'solid' }}
+    >
+      <div className="card-body">
+        <div className="d-flex justify-content-between align-items-center">
+          <div>
+            <p className="text-muted mb-1" style={{ fontSize: '13px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</p>
+            <h3 className="mb-0" style={{ fontWeight: 700, color }}>{value}</h3>
+            {subtitle && <small className="text-muted">{subtitle}</small>}
+          </div>
+          <div
+            style={{
+              width: 50, height: 50, borderRadius: '12px',
+              background: `${color}15`, display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              fontSize: '24px', color,
+            }}
+          >
+            {icon}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
+// Componente fila de la tabla de resumen por tipo
+const TipoRow = ({ tipo, data, color }) => (
+  <tr>
+    <td>
+      <span className="badge" style={{ background: color, color: '#fff', fontSize: '12px', padding: '5px 12px' }}>
+        {tipo}
+      </span>
+    </td>
+    <td style={{ fontWeight: 600 }}>{data.clientes}</td>
+    <td>{fmt(data.saldo_inversion)}</td>
+    <td>{fmt(data.saldo_total)}</td>
+  </tr>
+);
 
-
-const data = [
-    ["Year", "Sales", "Expenses"],
-    ["2014", 1000, 400],
-    ["2015", 1170, 460],
-    ["2016", 660, 1120],
-    ["2017", 1030, 540],
-  ];
-
-// Material chart options
-const options = {
-    'backgroundColor':'transparent',
-    'chartArea':{'width':'100%', 'height':'100%'}
-  };
 export const Dashboard = () => {
+  const dispatch = useDispatch();
+  const context = useContext(MyContext);
+  const {
+    totalInversion, totalSaldo, totalClientes,
+    mensual, quincenal, semanal, diario,
+    perdidos, pagados, resumenMensual, loaded,
+  } = useSelector(state => state.dashboardStore);
 
-    const ITEM_HEIGHT = 48;
-    const context = useContext(MyContext)
+  useEffect(() => {
+    context.setIsHideSideBarAndHeader(false);
+    window.scrollTo(0, 0);
+    dispatch(actionGetDashboardStats());
+  }, []);
 
-    useEffect(() =>{
-        context.setIsHideSideBarAndHeader(false)
-        window.scrollTo(0,0);
-    },[])
+  return (
+    <>
+      <div className="right-content w-100">
 
-        const [anchorEl, setAnchorEl] = useState(null);
-        const open = Boolean(anchorEl);
+        {/* Header */}
+        <div className="d-flex align-items-center justify-content-between mt-3 mb-3">
+          <h3 className="hd mb-0">Dashboard</h3>
+        </div>
 
-        const handleClick = (event) => {
-          setAnchorEl(event.currentTarget);
-        };
-        const handleClose = () => {
-          setAnchorEl(null);
-        };
+        {/* Cards principales */}
+        <div className="row">
+          <MainCard
+            title="Total Clientes Vigentes"
+            value={totalClientes}
+            subtitle="Clientes con estado vigente"
+            color="#2563eb"
+            icon={<span>&#128101;</span>}
+          />
+          <MainCard
+            title="Saldo a la Inversion"
+            value={fmt(totalInversion)}
+            subtitle="Capital prestado vigente"
+            color="#059669"
+            icon={<span>&#128176;</span>}
+          />
+          <MainCard
+            title="Saldo Total"
+            value={fmt(totalSaldo)}
+            subtitle="Total a recaudar vigente"
+            color="#d97706"
+            icon={<span>&#128200;</span>}
+          />
+        </div>
 
-        const [showBy, setShowBy]         = useState('');
-        const [showCatBy,  setShowCatBy]  = useState('');
+        {/* Tabla resumen por tipo de prestamo */}
+        <div className="card shadow-sm border-0 p-3 mt-3">
+          <h5 className="mb-3" style={{ fontWeight: 600 }}>Resumen por Tipo de Prestamo</h5>
+          <div className="table-responsive">
+            <table className="table table-bordered table-hover mb-0">
+              <thead style={{ background: '#f8f9fa' }}>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Clientes</th>
+                  <th>Saldo a la Inversion</th>
+                  <th>Saldo Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <TipoRow tipo="Mensual" data={mensual} color="#2563eb" />
+                <TipoRow tipo="Quincenal" data={quincenal} color="#7c3aed" />
+                <TipoRow tipo="Semanal" data={semanal} color="#059669" />
+                <TipoRow tipo="Diario" data={diario} color="#d97706" />
+              </tbody>
+              <tfoot style={{ background: '#f8f9fa', fontWeight: 700 }}>
+                <tr>
+                  <td>Total Vigentes</td>
+                  <td>{totalClientes}</td>
+                  <td>{fmt(totalInversion)}</td>
+                  <td>{fmt(totalSaldo)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
 
-    
-
-    return (
-        <>
-            <div className="right-content w-100">
-
-                <div className="row dashboardBoxWrapperRow">
-
-                    <div className="col-md-8">
-                
-                        <div className={`dashboardBoxWrapper ${context.windowWidth > 992 && 'd-flex'}`}>
-                            <DashboardBox color={["#1da256","#28d483"]} icon={<FaUserCircle/>} grow={true}/>
-                            <DashboardBox color={["#c012e2","#eb64fe"]} icon={<IoMdCart/>}/>
-                            <DashboardBox color={["#2c78e5","#60aff5"]} icon={<MdShoppingBag/>}/>
-                            <DashboardBox color={["#e1950e","#f3cd29"]} icon={<GiStarsStack/>}/>
-                        </div>
-
-                    </div>
-
-                    <div className="col-md-4  topPart2">
-
-                        <div className="box graphBox">
-
-                            <div className="d-flex align-items-center w-100 bottomEle">
-                                <h6 className="text-white mb-0 mt-0">Total Sales</h6>
-                                <div className="ms-auto">
-                                    <Button className="ms-auto toggleIcon" onClick={handleClick}><HiDotsVertical/></Button>
-            
-                                    <Menu
-                                        className="dropdown_menu"
-                                        MenuListProps={{
-                                        'aria-labelledby': 'long-button',
-                                        }}
-                                        anchorEl={anchorEl}
-                                        open={open}
-                                        onClose={handleClose}
-                                        slotProps={{
-                                        paper: {
-                                            style: {
-                                            maxHeight: ITEM_HEIGHT * 4.5,
-                                            width: '20ch',
-                                            },
-                                        },
-                                        }}
-                                    >
-                
-            
-                                        <MenuItem key="Last Day" onClick={handleClose}>
-                                            <IoIosTimer/> Last Day
-                                        </MenuItem>
-            
-                                        <MenuItem key="Last Weed" onClick={handleClose}>
-                                            <IoIosTimer/> Last Weed
-                                        </MenuItem>
-            
-                                        <MenuItem key="Last Month" onClick={handleClose}>
-                                            <IoIosTimer/> Last Month
-                                        </MenuItem>
-            
-                                        <MenuItem key="Last Year" onClick={handleClose}>
-                                            <IoIosTimer/> Last Year
-                                        </MenuItem>
-                                
-                                    </Menu>
-            
-                                </div>
-                                
-                            </div>
-
-                            <h3 className="text-white font-weight-bold">$3,787,681.00</h3>
-                            <p className="text-white">$3,787,681.00 in the last Month</p>
-                            
-                            <Chart 
-                                chartType="PieChart" 
-                                width="100%"
-                                height="170px"
-                                data={data}
-                                options={options}/>
-
-                        </div>
-                        
-                    </div>
-
+        {/* Cards de Pagados y Perdidos */}
+        <div className="row mt-3">
+          <div className="col-md-6 mb-3">
+            <div className="card shadow-sm border-0 h-100" style={{ borderLeft: '4px solid #16a34a' }}>
+              <div className="card-body">
+                <h6 className="text-muted mb-2" style={{ fontWeight: 600, textTransform: 'uppercase', fontSize: '12px', letterSpacing: '0.5px' }}>Clientes Pagados</h6>
+                <div className="d-flex justify-content-between align-items-end">
+                  <div>
+                    <h2 className="mb-0" style={{ fontWeight: 700, color: '#16a34a' }}>{pagados.clientes}</h2>
+                    <small className="text-muted">clientes</small>
+                  </div>
+                  <div className="text-end">
+                    <p className="mb-0" style={{ fontSize: '14px' }}>
+                      <strong>Inversion:</strong> {fmt(pagados.saldo_inversion)}
+                    </p>
+                    <p className="mb-0" style={{ fontSize: '14px' }}>
+                      <strong>Saldo Total:</strong> {fmt(pagados.saldo_total)}
+                    </p>
+                  </div>
                 </div>
-                
-                <div className="card shadow border-0 p-3 mt-4">
-                    <h3 className="hd">Best Selling Products</h3>
-
-                    <div className="row cardFilters mt-3">
-                        <div className="col-md-3">
-                            <h4>SHOW BY</h4>
-                            <FormControl size="small" fullWidth className="w'100">
-                                <Select
-                                    value={showBy}
-                                    displayEmpty
-                                    onChange={(e) => setShowBy(e.target.value)}
-                                    inputProps={{'aria-label':'Without label'}}
-                                    className="w-100"
-                                    >
-                                    <MenuItem value="">
-                                        <em>None</em>
-                                    </MenuItem>
-                                    <MenuItem value={10}>Ten</MenuItem>
-                                    <MenuItem value={20}>Twenty</MenuItem>
-                                    <MenuItem value={30}>Thirty</MenuItem>
-                                </Select>
-                            </FormControl>
-
-                        </div>
-
-                        <div className="col-md-3">
-                            <h4>CATEGORY BY</h4>
-                            <FormControl size="small" fullWidth className="w'100">
-                                <Select
-                                    value={showCatBy}
-                                    displayEmpty
-                                    labelId="demo-select-small-label"
-                                    onChange={(e) => setShowCatBy(e.target.value)}
-                                    inputProps={{'aria-label':'Without label'}}
-                                    className="w-100"
-                                    >
-                                    <MenuItem value="">
-                                        <em>None</em>
-                                    </MenuItem>
-                                    <MenuItem value={10}>Ten</MenuItem>
-                                    <MenuItem value={20}>Twenty</MenuItem>
-                                    <MenuItem value={30}>Thirty</MenuItem>
-                                </Select>
-                            </FormControl>
-
-                        </div>
-
-                        <div className="col-md-3">
-                            <h4>SHOW BY</h4>
-                            <FormControl size="small" fullWidth className="w'100">
-                                <Select
-                                    value={showBy}
-                                    displayEmpty
-                                    onChange={(e) => setShowBy(e.target.value)}
-                                    inputProps={{'aria-label':'Without label'}}
-                                    className="w-100"
-                                    >
-                                    <MenuItem value="">
-                                        <em>None</em>
-                                    </MenuItem>
-                                    <MenuItem value={10}>Ten</MenuItem>
-                                    <MenuItem value={20}>Twenty</MenuItem>
-                                    <MenuItem value={30}>Thirty</MenuItem>
-                                </Select>
-                            </FormControl>
-
-                        </div>
-
-                        <div className="col-md-3">
-                            <h4>SHOW BY</h4>
-                            <FormControl size="small" fullWidth className="w'100">
-                                <Select
-                                    value={showBy}
-                                    displayEmpty
-                                    onChange={(e) => setShowBy(e.target.value)}
-                                    inputProps={{'aria-label':'Without label'}}
-                                    className="w-100"
-                                    >
-                                    <MenuItem value="">
-                                        <em>None</em>
-                                    </MenuItem>
-                                    <MenuItem value={10}>Ten</MenuItem>
-                                    <MenuItem value={20}>Twenty</MenuItem>
-                                    <MenuItem value={30}>Thirty</MenuItem>
-                                </Select>
-                            </FormControl>
-                        </div>
-                    </div>
-
-                    <div className="table-responsive mt-3">
-                        <table className="table table-bordered v-align">
-                            <thead className="thead-dark">
-                                <tr>
-                                    <th>UID</th>
-                                    <th style={{width:'300px'}}>PRODUCT</th>
-                                    <th>CATEGORY</th>
-                                    <th>BRAND</th>
-                                    <th>PRINCE</th>
-                                    <th>STOCK</th>
-                                    <th>RATING</th>
-                                    <th>ORDER</th>
-                                    <th>SALES</th>
-                                    <th>ACTIONS</th>
-                                </tr>
-                            </thead>
-
-                            <tbody>
-                                <tr>
-                                    <td>1</td>
-                                    <td>
-                                        <div className="d-flex productBox align-items-center">
-                                            <div className="imgWrapper">
-                                                <div className="img">
-                                                    <img src="https://mironcoder-hotash.netlify.app/images/avatar/01.webp" 
-                                                        alt=""
-                                                        className="w-100" />
-                                                </div>
-                                            </div>
-                                            <div className="info pl-0">
-                                                <h6>Top  and skirt set for Famele....</h6>
-                                                <p>Lorem ipsum dolor sit ignissimos optio in.</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>
-                                        <div className={{width:'70px'}}>
-                                            <del className="old">$21.00</del>
-                                            <span className="new text-danger">$21.00</span>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>Mark</td>
-                                    <td>Otto</td>
-                                    <td>
-                                        <div className="actions d-flex align-items-center">
-                                            <Button className="secondary" color="secondary"><FaEye/></Button>
-                                            <Button className="success"   color="success"><FaPencilAlt/></Button>
-                                            <Button className="error"     color="error"><MdDelete/></Button>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                                <tr>
-                                    <td>1</td>
-                                    <td>
-                                        <div className="d-flex productBox align-items-center">
-                                            <div className="imgWrapper">
-                                                <div className="img">
-                                                    <img src="https://mironcoder-hotash.netlify.app/images/avatar/01.webp" 
-                                                        alt=""
-                                                        className="w-100" />
-                                                </div>
-                                            </div>
-                                            <div className="info pl-0">
-                                                <h6>Top  and skirt set for Famele....</h6>
-                                                <p>Lorem ipsum dolor sit ignissimos optio in.</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>
-                                        <div className={{width:'70px'}}>
-                                            <del className="old">$21.00</del>
-                                            <span className="new text-danger">$21.00</span>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>Mark</td>
-                                    <td>Otto</td>
-                                    <td>
-                                        <div className="actions d-flex align-items-center">
-                                            <Button className="secondary" color="secondary"><FaEye/></Button>
-                                            <Button className="success"   color="success"><FaPencilAlt/></Button>
-                                            <Button className="error"     color="error"><MdDelete/></Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>1</td>
-                                    <td>
-                                        <div className="d-flex productBox align-items-center">
-                                            <div className="imgWrapper">
-                                                <div className="img">
-                                                    <img src="https://mironcoder-hotash.netlify.app/images/avatar/01.webp" 
-                                                        alt=""
-                                                        className="w-100" />
-                                                </div>
-                                            </div>
-                                            <div className="info pl-0">
-                                                <h6>Top  and skirt set for Famele....</h6>
-                                                <p>Lorem ipsum dolor sit ignissimos optio in.</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>
-                                        <div className={{width:'70px'}}>
-                                            <del className="old">$21.00</del>
-                                            <span className="new text-danger">$21.00</span>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>Mark</td>
-                                    <td>Otto</td>
-                                    <td>
-                                        <div className="actions d-flex align-items-center">
-                                            <Button className="secondary" color="secondary"><FaEye/></Button>
-                                            <Button className="success"   color="success"><FaPencilAlt/></Button>
-                                            <Button className="error"     color="error"><MdDelete/></Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>1</td>
-                                    <td>
-                                        <div className="d-flex productBox align-items-center">
-                                            <div className="imgWrapper">
-                                                <div className="img">
-                                                    <img src="https://mironcoder-hotash.netlify.app/images/avatar/01.webp" 
-                                                        alt=""
-                                                        className="w-100" />
-                                                </div>
-                                            </div>
-                                            <div className="info pl-0">
-                                                <h6>Top  and skirt set for Famele....</h6>
-                                                <p>Lorem ipsum dolor sit ignissimos optio in.</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>
-                                        <div className={{width:'70px'}}>
-                                            <del className="old">$21.00</del>
-                                            <span className="new text-danger">$21.00</span>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>Mark</td>
-                                    <td>Otto</td>
-                                    <td>
-                                        <div className="actions d-flex align-items-center">
-                                            <Button className="secondary" color="secondary"><FaEye/></Button>
-                                            <Button className="success"   color="success"><FaPencilAlt/></Button>
-                                            <Button className="error"     color="error"><MdDelete/></Button>
-                                        </div>
-                                    </td>
-                                </tr>                                <tr>
-                                    <td>1</td>
-                                    <td>
-                                        <div className="d-flex productBox align-items-center">
-                                            <div className="imgWrapper">
-                                                <div className="img">
-                                                    <img src="https://mironcoder-hotash.netlify.app/images/avatar/01.webp" 
-                                                        alt=""
-                                                        className="w-100" />
-                                                </div>
-                                            </div>
-                                            <div className="info pl-0">
-                                                <h6>Top  and skirt set for Famele....</h6>
-                                                <p>Lorem ipsum dolor sit ignissimos optio in.</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>
-                                        <div className={{width:'70px'}}>
-                                            <del className="old">$21.00</del>
-                                            <span className="new text-danger">$21.00</span>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>Mark</td>
-                                    <td>Otto</td>
-                                    <td>
-                                        <div className="actions d-flex align-items-center">
-                                            <Button className="secondary" color="secondary"><FaEye/></Button>
-                                            <Button className="success"   color="success"><FaPencilAlt/></Button>
-                                            <Button className="error"     color="error"><MdDelete/></Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>1</td>
-                                    <td>
-                                        <div className="d-flex productBox align-items-center">
-                                            <div className="imgWrapper">
-                                                <div className="img">
-                                                    <img src="https://mironcoder-hotash.netlify.app/images/avatar/01.webp" 
-                                                        alt=""
-                                                        className="w-100" />
-                                                </div>
-                                            </div>
-                                            <div className="info pl-0">
-                                                <h6>Top  and skirt set for Famele....</h6>
-                                                <p>Lorem ipsum dolor sit ignissimos optio in.</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>
-                                        <div className={{width:'70px'}}>
-                                            <del className="old">$21.00</del>
-                                            <span className="new text-danger">$21.00</span>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>Mark</td>
-                                    <td>Otto</td>
-                                    <td>
-                                        <div className="actions d-flex align-items-center">
-                                            <Button className="secondary" color="secondary"><FaEye/></Button>
-                                            <Button className="success"   color="success"><FaPencilAlt/></Button>
-                                            <Button className="error"     color="error"><MdDelete/></Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>1</td>
-                                    <td>
-                                        <div className="d-flex productBox align-items-center">
-                                            <div className="imgWrapper">
-                                                <div className="img">
-                                                    <img src="https://mironcoder-hotash.netlify.app/images/avatar/01.webp" 
-                                                        alt=""
-                                                        className="w-100" />
-                                                </div>
-                                            </div>
-                                            <div className="info pl-0">
-                                                <h6>Top  and skirt set for Famele....</h6>
-                                                <p>Lorem ipsum dolor sit ignissimos optio in.</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>
-                                        <div className={{width:'70px'}}>
-                                            <del className="old">$21.00</del>
-                                            <span className="new text-danger">$21.00</span>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>Mark</td>
-                                    <td>Otto</td>
-                                    <td>
-                                        <div className="actions d-flex align-items-center">
-                                            <Button className="secondary" color="secondary"><FaEye/></Button>
-                                            <Button className="success"   color="success"><FaPencilAlt/></Button>
-                                            <Button className="error"     color="error"><MdDelete/></Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>1</td>
-                                    <td>
-                                        <div className="d-flex productBox align-items-center">
-                                            <div className="imgWrapper">
-                                                <div className="img">
-                                                    <img src="https://mironcoder-hotash.netlify.app/images/avatar/01.webp" 
-                                                        alt=""
-                                                        className="w-100" />
-                                                </div>
-                                            </div>
-                                            <div className="info pl-0">
-                                                <h6>Top  and skirt set for Famele....</h6>
-                                                <p>Lorem ipsum dolor sit ignissimos optio in.</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>
-                                        <div className={{width:'70px'}}>
-                                            <del className="old">$21.00</del>
-                                            <span className="new text-danger">$21.00</span>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>Mark</td>
-                                    <td>Otto</td>
-                                    <td>
-                                        <div className="actions d-flex align-items-center">
-                                            <Button className="secondary" color="secondary"><FaEye/></Button>
-                                            <Button className="success"   color="success"><FaPencilAlt/></Button>
-                                            <Button className="error"     color="error"><MdDelete/></Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>1</td>
-                                    <td>
-                                        <div className="d-flex productBox align-items-center">
-                                            <div className="imgWrapper">
-                                                <div className="img">
-                                                    <img src="https://mironcoder-hotash.netlify.app/images/avatar/01.webp" 
-                                                        alt=""
-                                                        className="w-100" />
-                                                </div>
-                                            </div>
-                                            <div className="info pl-0">
-                                                <h6>Top  and skirt set for Famele....</h6>
-                                                <p>Lorem ipsum dolor sit ignissimos optio in.</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>
-                                        <div className={{width:'70px'}}>
-                                            <del className="old">$21.00</del>
-                                            <span className="new text-danger">$21.00</span>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>Mark</td>
-                                    <td>Otto</td>
-                                    <td>
-                                        <div className="actions d-flex align-items-center">
-                                            <Button className="secondary" color="secondary"><FaEye/></Button>
-                                            <Button className="success"   color="success"><FaPencilAlt/></Button>
-                                            <Button className="error"     color="error"><MdDelete/></Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>1</td>
-                                    <td>
-                                        <div className="d-flex productBox align-items-center">
-                                            <div className="imgWrapper">
-                                                <div className="img">
-                                                    <img src="https://mironcoder-hotash.netlify.app/images/avatar/01.webp" 
-                                                        alt=""
-                                                        className="w-100" />
-                                                </div>
-                                            </div>
-                                            <div className="info pl-0">
-                                                <h6>Top  and skirt set for Famele....</h6>
-                                                <p>Lorem ipsum dolor sit ignissimos optio in.</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>
-                                        <div className={{width:'70px'}}>
-                                            <del className="old">$21.00</del>
-                                            <span className="new text-danger">$21.00</span>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>Mark</td>
-                                    <td>Otto</td>
-                                    <td>
-                                        <div className="actions d-flex align-items-center">
-                                            <Button className="secondary" color="secondary"><FaEye/></Button>
-                                            <Button className="success"   color="success"><FaPencilAlt/></Button>
-                                            <Button className="error"     color="error"><MdDelete/></Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>1</td>
-                                    <td>
-                                        <div className="d-flex productBox align-items-center">
-                                            <div className="imgWrapper">
-                                                <div className="img">
-                                                    <img src="https://mironcoder-hotash.netlify.app/images/avatar/01.webp" 
-                                                        alt=""
-                                                        className="w-100" />
-                                                </div>
-                                            </div>
-                                            <div className="info pl-0">
-                                                <h6>Top  and skirt set for Famele....</h6>
-                                                <p>Lorem ipsum dolor sit ignissimos optio in.</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>
-                                        <div className={{width:'70px'}}>
-                                            <del className="old">$21.00</del>
-                                            <span className="new text-danger">$21.00</span>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>Mark</td>
-                                    <td>Otto</td>
-                                    <td>
-                                        <div className="actions d-flex align-items-center">
-                                            <Button className="secondary" color="secondary"><FaEye/></Button>
-                                            <Button className="success"   color="success"><FaPencilAlt/></Button>
-                                            <Button className="error"     color="error"><MdDelete/></Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>1</td>
-                                    <td>
-                                        <div className="d-flex productBox align-items-center">
-                                            <div className="imgWrapper">
-                                                <div className="img">
-                                                    <img src="https://mironcoder-hotash.netlify.app/images/avatar/01.webp" 
-                                                        alt=""
-                                                        className="w-100" />
-                                                </div>
-                                            </div>
-                                            <div className="info pl-0">
-                                                <h6>Top  and skirt set for Famele....</h6>
-                                                <p>Lorem ipsum dolor sit ignissimos optio in.</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>
-                                        <div className={{width:'70px'}}>
-                                            <del className="old">$21.00</del>
-                                            <span className="new text-danger">$21.00</span>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>Mark</td>
-                                    <td>Otto</td>
-                                    <td>
-                                        <div className="actions d-flex align-items-center">
-                                            <Button className="secondary" color="secondary"><FaEye/></Button>
-                                            <Button className="success"   color="success"><FaPencilAlt/></Button>
-                                            <Button className="error"     color="error"><MdDelete/></Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>1</td>
-                                    <td>
-                                        <div className="d-flex productBox align-items-center">
-                                            <div className="imgWrapper">
-                                                <div className="img">
-                                                    <img src="https://mironcoder-hotash.netlify.app/images/avatar/01.webp" 
-                                                        alt=""
-                                                        className="w-100" />
-                                                </div>
-                                            </div>
-                                            <div className="info pl-0">
-                                                <h6>Top  and skirt set for Famele....</h6>
-                                                <p>Lorem ipsum dolor sit ignissimos optio in.</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>
-                                        <div className={{width:'70px'}}>
-                                            <del className="old">$21.00</del>
-                                            <span className="new text-danger">$21.00</span>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>Mark</td>
-                                    <td>Otto</td>
-                                    <td>
-                                        <div className="actions d-flex align-items-center">
-                                            <Button className="secondary" color="secondary"><FaEye/></Button>
-                                            <Button className="success"   color="success"><FaPencilAlt/></Button>
-                                            <Button className="error"     color="error"><MdDelete/></Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>1</td>
-                                    <td>
-                                        <div className="d-flex productBox align-items-center">
-                                            <div className="imgWrapper">
-                                                <div className="img">
-                                                    <img src="https://mironcoder-hotash.netlify.app/images/avatar/01.webp" 
-                                                        alt=""
-                                                        className="w-100" />
-                                                </div>
-                                            </div>
-                                            <div className="info pl-0">
-                                                <h6>Top  and skirt set for Famele....</h6>
-                                                <p>Lorem ipsum dolor sit ignissimos optio in.</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>
-                                        <div className={{width:'70px'}}>
-                                            <del className="old">$21.00</del>
-                                            <span className="new text-danger">$21.00</span>
-                                        </div>
-                                    </td>
-                                    <td>Otto</td>
-                                    <td>@mdo</td>
-                                    <td>Mark</td>
-                                    <td>Otto</td>
-                                    <td>
-                                        <div className="actions d-flex align-items-center">
-                                            <Button className="secondary" color="secondary"><FaEye/></Button>
-                                            <Button className="success"   color="success"><FaPencilAlt/></Button>
-                                            <Button className="error"     color="error"><MdDelete/></Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-
-                        </table>
-                        
-                        <div className="d-flex tableFooter">
-                            <p>showing <b>12</b> of <b>60</b> result </p>
-                            <Pagination className="pagination" 
-                                        count={10} 
-                                        color="primary"
-                                        showFirstButton
-                                        showLastButton />
-                        </div>
-
-                    </div>
-
-                </div>
+              </div>
             </div>
-        </>
-        
-    )
+          </div>
+
+          <div className="col-md-6 mb-3">
+            <div className="card shadow-sm border-0 h-100" style={{ borderLeft: '4px solid #dc2626' }}>
+              <div className="card-body">
+                <h6 className="text-muted mb-2" style={{ fontWeight: 600, textTransform: 'uppercase', fontSize: '12px', letterSpacing: '0.5px' }}>Clientes Perdidos</h6>
+                <div className="d-flex justify-content-between align-items-end">
+                  <div>
+                    <h2 className="mb-0" style={{ fontWeight: 700, color: '#dc2626' }}>{perdidos.clientes}</h2>
+                    <small className="text-muted">clientes</small>
+                  </div>
+                  <div className="text-end">
+                    <p className="mb-0" style={{ fontSize: '14px' }}>
+                      <strong>Inversion perdida:</strong> {fmt(perdidos.saldo_inversion)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabla resumen mensual (ultimos 6 meses) */}
+        {resumenMensual && resumenMensual.length > 0 && (
+          <div className="card shadow-sm border-0 p-3 mt-3 mb-4">
+            <h5 className="mb-3" style={{ fontWeight: 600 }}>Prestamos por Mes (ultimos 6 meses)</h5>
+            <div className="table-responsive">
+              <table className="table table-bordered table-hover mb-0">
+                <thead style={{ background: '#f8f9fa' }}>
+                  <tr>
+                    <th>Mes</th>
+                    <th>Clientes Nuevos</th>
+                    <th>Saldo a la Inversion</th>
+                    <th>Saldo Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumenMensual.map((mes, i) => (
+                    <tr key={i}>
+                      <td style={{ fontWeight: 600 }}>{mes.mes}</td>
+                      <td>
+                        <span className="badge bg-primary" style={{ fontSize: '13px', padding: '5px 10px' }}>
+                          {mes.clientes}
+                        </span>
+                      </td>
+                      <td>{fmt(mes.saldo_inversion)}</td>
+                      <td>{fmt(mes.saldo_total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+      </div>
+      <BackdropComponent />
+    </>
+  );
 }
