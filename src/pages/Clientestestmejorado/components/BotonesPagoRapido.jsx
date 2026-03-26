@@ -9,9 +9,10 @@ import {
 import {
   Payment as PaymentIcon, Close as CloseIcon,
   AccountBalanceWallet as WalletIcon, TrendingUp as InterestIcon,
-  CheckCircle as CheckIcon,
+  CheckCircle as CheckIcon, Person as PersonIcon,
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
+import Swal from 'sweetalert2';
 import { formatMoney, parseMoney } from '../utils/loanCalculations';
 
 // Redux actions
@@ -23,6 +24,27 @@ import {
 
 
 // ============================================================================
+// BANNER: INFORMACION DEL CLIENTE (reutilizable en todos los modales)
+// ============================================================================
+
+const BannerInfoCliente = () => {
+  const { nombre, numeroTarjeta, porcentajeInteres, montoPrestamo } = useSelector(state => state.prestamosTestStore);
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, p: 1.5, backgroundColor: '#e3f2fd', borderRadius: 1, border: '1px solid #90caf9' }}>
+      <PersonIcon sx={{ color: 'primary.main', fontSize: 32 }} />
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, flex: 1 }}>
+        <Chip label={nombre || 'Sin nombre'} size="small" sx={{ fontWeight: 'bold', fontSize: '13px' }} />
+        <Chip label={`# ${numeroTarjeta}`} size="small" variant="outlined" />
+        <Chip label={`${porcentajeInteres}% interés`} size="small" variant="outlined" color="info" />
+        <Chip label={`Capital: $${formatMoney(parseMoney(montoPrestamo))}`} size="small" variant="outlined" color="primary" />
+      </Box>
+    </Box>
+  );
+};
+
+
+// ============================================================================
 // DIALOGO: PAGO DE CUOTA PERSONALIZADO
 // ============================================================================
 
@@ -31,13 +53,14 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
   const { cuotas } = useSelector(state => state.prestamosTestStore);
   const [montoPago, setMontoPago] = useState('');
   const [fechaPago, setFechaPago] = useState(dayjs().format('YYYY-MM-DD'));
+  const [descripcion, setDescripcion] = useState('');
   const [distribucion, setDistribucion] = useState([]);
 
   const cuotasPendientes = cuotas.filter(c => c.estado_pago !== 'pagado');
   const saldoTotalPendiente = cuotasPendientes.reduce((sum, c) => sum + parseMoney(c.saldo || c.valor), 0);
 
   useEffect(() => {
-    if (open) { setMontoPago(''); setDistribucion([]); setFechaPago(dayjs().format('YYYY-MM-DD')); }
+    if (open) { setMontoPago(''); setDistribucion([]); setFechaPago(dayjs().format('YYYY-MM-DD')); setDescripcion(''); }
   }, [open]);
 
   const calcularDistribucion = (monto) => {
@@ -69,7 +92,7 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
   const handleConfirmar = () => {
     const monto = parseMoney(montoPago);
     if (!monto || monto <= 0) { alert('El monto debe ser mayor a 0'); return; }
-    dispatch(actionPagarCuota(monto, fechaPago));
+    dispatch(actionPagarCuota(monto, fechaPago, descripcion));
     onClose();
   };
 
@@ -84,6 +107,7 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
         </Box>
       </DialogTitle>
       <DialogContent dividers>
+        <BannerInfoCliente />
         <Alert severity="info" sx={{ mb: 3 }}><strong>Pago flexible:</strong> El sistema distribuirá automáticamente el pago entre las cuotas pendientes en orden.</Alert>
         <Card variant="outlined" sx={{ mb: 3, backgroundColor: 'grey.50' }}>
           <CardContent>
@@ -96,6 +120,7 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid item xs={12} md={6}><TextField fullWidth label="Monto a Pagar" value={montoPago} onChange={handleMontoChange} placeholder="Ingrese el monto" InputProps={{ startAdornment: <Typography sx={{ mr: 1 }}>$</Typography> }} /></Grid>
           <Grid item xs={12} md={6}><TextField fullWidth type="date" label="Fecha de Pago" value={fechaPago} onChange={(e) => setFechaPago(e.target.value)} InputLabelProps={{ shrink: true }} /></Grid>
+          <Grid item xs={12}><TextField fullWidth multiline rows={2} label="Descripción (opcional)" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Ej: Pago parcial, abono anticipado, etc." /></Grid>
         </Grid>
         {distribucion.length > 0 && (
           <>
@@ -174,6 +199,7 @@ const DialogoPagoInteresPersonalizado = ({ open, onClose }) => {
         </Box>
       </DialogTitle>
       <DialogContent dividers>
+        <BannerInfoCliente />
         <Alert severity="warning" sx={{ mb: 3 }}><strong>Pago de interés:</strong> Se suma directamente a las 3 utilidades. No afecta el saldo de las cuotas.</Alert>
         <Grid container spacing={2}>
           <Grid item xs={12}><TextField fullWidth label="Monto del Interés" value={montoPago} onChange={(e) => setMontoPago(formatMoney(e.target.value.replace(/\D/g, '')))} InputProps={{ startAdornment: <Typography sx={{ mr: 1 }}>$</Typography> }} /></Grid>
@@ -200,6 +226,7 @@ const DialogoPagarSaldoTotal = ({ open, onClose }) => {
   const [fechaPago, setFechaPago] = useState(dayjs().format('YYYY-MM-DD'));
   const [porcentajeInteres, setPorcentajeInteres] = useState('');
   const [tiempo, setTiempo] = useState('');
+  const [descripcion, setDescripcion] = useState('');
 
   const dineroPrestado = parseMoney(montoPrestamo);
   const abonoTotal = cuotas.reduce((sum, c) => sum + parseMoney(c.abonado || 0), 0);
@@ -208,11 +235,49 @@ const DialogoPagarSaldoTotal = ({ open, onClose }) => {
   const totalBruto = tiempo !== '' && meses > 0 ? dineroPrestado + (dineroPrestado * (interes / 100) * meses) : 0;
   const totalAPagar = Math.max(0, totalBruto - abonoTotal);
 
-  useEffect(() => { if (open) { setFechaPago(dayjs().format('YYYY-MM-DD')); setPorcentajeInteres(''); setTiempo(''); } }, [open]);
+  useEffect(() => { if (open) { setFechaPago(dayjs().format('YYYY-MM-DD')); setPorcentajeInteres(''); setTiempo(''); setDescripcion(''); } }, [open]);
 
-  const handleConfirmar = () => {
+  const handleConfirmar = async () => {
     if (totalAPagar <= 0) { alert('Ingrese el interés y el tiempo para calcular el total a pagar'); return; }
-    dispatch(actionPagarSaldoTotal(interes, meses, fechaPago));
+
+    // Primera alerta: resumen de lo que va a hacer
+    const primera = await Swal.fire({
+      title: '¿Pagar saldo total?',
+      html:
+        `<div style="text-align:left; font-size:14px;">` +
+        `<p><strong>Capital prestado:</strong> $${formatMoney(dineroPrestado)}</p>` +
+        `<p><strong>Interés:</strong> ${interes}% por ${meses} mes(es)</p>` +
+        `<p><strong>Abono previo:</strong> $${formatMoney(abonoTotal)}</p>` +
+        `<hr/>` +
+        `<p style="font-size:18px; color:#d32f2f;"><strong>Total a pagar: $${formatMoney(totalAPagar)}</strong></p>` +
+        `</div>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d32f2f',
+      cancelButtonColor: '#757575',
+      confirmButtonText: 'Sí, continuar',
+      cancelButtonText: 'Cancelar',
+    });
+
+    if (!primera.isConfirmed) return;
+
+    // Segunda alerta: advertencia final irreversible
+    const segunda = await Swal.fire({
+      title: '⚠️ Acción irreversible',
+      html:
+        `<p style="font-size:15px;">Esta operación <strong>marcará el préstamo como PAGADO</strong> y <strong>no se podrá modificar</strong> después.</p>` +
+        `<p style="font-size:14px; color:#d32f2f; margin-top:10px;"><strong>¿Está completamente seguro de proceder?</strong></p>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d32f2f',
+      cancelButtonColor: '#757575',
+      confirmButtonText: 'Confirmar pago total',
+      cancelButtonText: 'No, volver atrás',
+    });
+
+    if (!segunda.isConfirmed) return;
+
+    dispatch(actionPagarSaldoTotal(interes, meses, fechaPago, descripcion));
     onClose();
   };
 
@@ -225,6 +290,7 @@ const DialogoPagarSaldoTotal = ({ open, onClose }) => {
         </Box>
       </DialogTitle>
       <DialogContent dividers>
+        <BannerInfoCliente />
         <Card variant="outlined" sx={{ mb: 3, backgroundColor: 'grey.50' }}>
           <CardContent>
             <Grid container spacing={2}>
@@ -238,6 +304,7 @@ const DialogoPagarSaldoTotal = ({ open, onClose }) => {
           <Grid item xs={12} md={6}><TextField fullWidth label="Tiempo (meses)" type="number" value={tiempo} onChange={(e) => setTiempo(e.target.value)} /></Grid>
         </Grid>
         <TextField fullWidth type="date" label="Fecha de Pago" value={fechaPago} onChange={(e) => setFechaPago(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ mb: 3 }} />
+        <TextField fullWidth multiline rows={2} label="Descripción (opcional)" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Ej: Liquidación anticipada, pago total, etc." sx={{ mb: 3 }} />
         <Card variant="outlined" sx={{ border: 2, borderColor: totalBruto > 0 ? 'error.main' : 'grey.300' }}>
           <CardContent>
             <Typography variant="subtitle2" color="text.secondary" gutterBottom>Total a Pagar</Typography>

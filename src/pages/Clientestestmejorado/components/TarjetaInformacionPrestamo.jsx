@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import {
   Box,
   Typography,
@@ -8,11 +9,28 @@ import {
   TableContainer,
   TableRow,
   Paper,
+  TextField,
+  Button,
+  IconButton,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
 } from '@mui/material';
+import {
+  NoteAdd as NoteAddIcon,
+  Delete as DeleteIcon,
+} from '@mui/icons-material';
 import dayjs from 'dayjs';
 import { formatMoney } from '../utils/loanCalculations';
+import { actionCrearNota, actionEliminarNota } from '../../../store/prestamosTestStore/prestamosTestStoreActions';
 
 const TarjetaInformacionPrestamo = ({ datosPrestamo }) => {
+  const dispatch = useDispatch();
+  const { notas } = useSelector(state => state.prestamosTestStore);
+  const [nuevaNota, setNuevaNota] = useState('');
+
   if (!datosPrestamo) return null;
 
   const {
@@ -58,6 +76,17 @@ const TarjetaInformacionPrestamo = ({ datosPrestamo }) => {
     { label: 'Utilidad Real 2', value: formatMoney(utilidadReal2), isBold: false },
     { label: 'Utilidad Real 3', value: formatMoney(utilidadReal3), isBold: false },
   ];
+
+  const handleAgregarNota = () => {
+    const texto = nuevaNota.trim();
+    if (!texto) return;
+    dispatch(actionCrearNota(texto));
+    setNuevaNota('');
+  };
+
+  const handleEliminarNota = (notaId) => {
+    dispatch(actionEliminarNota(notaId));
+  };
 
   return (
     <Paper elevation={3} sx={{ borderRadius: 2, overflow: 'hidden', height: '100%' }}>
@@ -109,6 +138,84 @@ const TarjetaInformacionPrestamo = ({ datosPrestamo }) => {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* ============================================ */}
+      {/* SECCION DE NOTAS                             */}
+      {/* ============================================ */}
+      <Divider />
+      <Box sx={{ p: 2 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'warning.dark' }}>
+          Notas / Anomalías
+        </Typography>
+
+        {/* Input para agregar nueva nota */}
+        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+          <TextField
+            fullWidth
+            size="small"
+            multiline
+            minRows={1}
+            maxRows={3}
+            placeholder="Escribir una nota o anomalía..."
+            value={nuevaNota}
+            onChange={(e) => setNuevaNota(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleAgregarNota();
+              }
+            }}
+          />
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={handleAgregarNota}
+            disabled={!nuevaNota.trim()}
+            sx={{ minWidth: 'auto', px: 2 }}
+          >
+            <NoteAddIcon />
+          </Button>
+        </Box>
+
+        {/* Lista de notas */}
+        {notas && notas.length > 0 ? (
+          <List dense sx={{ maxHeight: 250, overflowY: 'auto' }}>
+            {notas.map((nota) => (
+              <ListItem
+                key={nota.id}
+                sx={{
+                  backgroundColor: '#fff8e1',
+                  borderRadius: 1,
+                  mb: 0.5,
+                  border: '1px solid #ffe082',
+                  pr: 6,
+                }}
+              >
+                <ListItemText
+                  primary={nota.texto}
+                  secondary={dayjs(nota.created_at).format('YYYY-MM-DD HH:mm')}
+                  primaryTypographyProps={{ fontSize: '13px' }}
+                  secondaryTypographyProps={{ fontSize: '11px' }}
+                />
+                <ListItemSecondaryAction>
+                  <IconButton
+                    edge="end"
+                    size="small"
+                    color="error"
+                    onClick={() => handleEliminarNota(nota.id)}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </ListItemSecondaryAction>
+              </ListItem>
+            ))}
+          </List>
+        ) : (
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 1 }}>
+            Sin notas registradas
+          </Typography>
+        )}
+      </Box>
     </Paper>
   );
 };

@@ -52,6 +52,7 @@ const mapearRespuestaARedux = (data) => {
     pagosIntereses                  : data.pagos_intereses || [],
     historial                       : data.historial || [],
     ampliaciones                    : data.ampliaciones || [],
+    notas                           : data.notas || [],
   };
 };
 
@@ -255,12 +256,15 @@ export const actionObtenerPrestamo = (clienteId) => {
 // El backend distribuye el monto entre cuotas pendientes automaticamente.
 // =============================================================================
 
-export const actionPagarCuota = (monto, fechaPago) => {
+export const actionPagarCuota = (monto, fechaPago, descripcion = '') => {
   return async (dispatch, getState) => {
     await dispatch(handleShowBackDrop());
 
     const { authStore, prestamosTestStore } = getState();
     const { id } = prestamosTestStore;
+
+    const data = { monto: String(monto).replace(/\./g, ''), fecha_pago: fechaPago };
+    if (descripcion) data.descripcion = descripcion;
 
     const options = {
       method: 'POST',
@@ -269,7 +273,7 @@ export const actionPagarCuota = (monto, fechaPago) => {
         Authorization: `Bearer ${authStore.token}`,
         "Content-Type": "application/json",
       },
-      data: { monto: String(monto).replace(/\./g, ''), fecha_pago: fechaPago },
+      data,
     };
 
     try {
@@ -437,12 +441,19 @@ export const actionEliminarPagoInteres = (pagoId) => {
 // Calcula con % interes y tiempo, marca todas las cuotas como pagadas.
 // =============================================================================
 
-export const actionPagarSaldoTotal = (porcentajeInteres, tiempo, fechaPago) => {
+export const actionPagarSaldoTotal = (porcentajeInteres, tiempo, fechaPago, descripcion = '') => {
   return async (dispatch, getState) => {
     await dispatch(handleShowBackDrop());
 
     const { authStore, prestamosTestStore } = getState();
     const { id } = prestamosTestStore;
+
+    const data = {
+      porcentaje_interes: porcentajeInteres,
+      tiempo: parseInt(tiempo),
+      fecha_pago: fechaPago,
+    };
+    if (descripcion) data.descripcion = descripcion;
 
     const options = {
       method: 'POST',
@@ -451,11 +462,7 @@ export const actionPagarSaldoTotal = (porcentajeInteres, tiempo, fechaPago) => {
         Authorization: `Bearer ${authStore.token}`,
         "Content-Type": "application/json",
       },
-      data: {
-        porcentaje_interes: porcentajeInteres,
-        tiempo: parseInt(tiempo),
-        fecha_pago: fechaPago,
-      },
+      data,
     };
 
     try {
@@ -849,6 +856,83 @@ export const actionDescargarExcel = (filters = {}) => {
       await alertaError();
     } finally {
       await dispatch(handleHideBackDrop());
+    }
+  };
+};
+
+
+// =============================================================================
+// NOTAS: Obtener, crear y eliminar notas de un prestamo
+// =============================================================================
+
+export const actionObtenerNotas = () => {
+  return async (dispatch, getState) => {
+    const { authStore, prestamosTestStore } = getState();
+    const { id } = prestamosTestStore;
+
+    try {
+      const response = await axios.request({
+        method: 'GET',
+        url: `${dominio}${path}${id}/notas/`,
+        headers: { Authorization: `Bearer ${authStore.token}` },
+      });
+      dispatch(handleForm({ name: 'notas', value: response.data }));
+    } catch (error) {
+      console.error("Error al obtener notas:", error);
+    }
+  };
+};
+
+export const actionCrearNota = (texto) => {
+  return async (dispatch, getState) => {
+    const { authStore, prestamosTestStore } = getState();
+    const { id } = prestamosTestStore;
+
+    try {
+      const response = await axios.request({
+        method: 'POST',
+        url: `${dominio}${path}${id}/notas/`,
+        headers: {
+          Authorization: `Bearer ${authStore.token}`,
+          "Content-Type": "application/json",
+        },
+        data: { texto },
+      });
+
+      if (response.status === 201) {
+        // Agregar la nota al inicio del array existente
+        const notasActuales = prestamosTestStore.notas || [];
+        dispatch(handleForm({ name: 'notas', value: [response.data, ...notasActuales] }));
+        await alertaCreado();
+      }
+    } catch (error) {
+      console.error("Error al crear nota:", error);
+      const msg = error.response?.data?.error || "Error al crear nota";
+      await alertaError(msg);
+    }
+  };
+};
+
+export const actionEliminarNota = (notaId) => {
+  return async (dispatch, getState) => {
+    const { authStore, prestamosTestStore } = getState();
+
+    try {
+      const response = await axios.request({
+        method: 'DELETE',
+        url: `${dominio}${path}notas/${notaId}/eliminar/`,
+        headers: { Authorization: `Bearer ${authStore.token}` },
+      });
+
+      if (response.status === 200) {
+        const notasActuales = prestamosTestStore.notas || [];
+        dispatch(handleForm({ name: 'notas', value: notasActuales.filter(n => n.id !== notaId) }));
+        await alertaEliminado();
+      }
+    } catch (error) {
+      console.error("Error al eliminar nota:", error);
+      const msg = error.response?.data?.error || "Error al eliminar nota";
+      await alertaError(msg);
     }
   };
 };

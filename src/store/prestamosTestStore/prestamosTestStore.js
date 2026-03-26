@@ -42,6 +42,7 @@ export const prestamosTestStore = createSlice({
     pagosIntereses                  : [],
     historial                       : [],
     ampliaciones                    : [],
+    notas                           : [],
 
     // === PAGINACION (listado de prestamos) ===
     count                           : 0,
@@ -108,6 +109,7 @@ export const prestamosTestStore = createSlice({
       state.pagosIntereses                  = [];
       state.historial                       = [];
       state.ampliaciones                    = [];
+      state.notas                           = [];
       state.tabActual                       = 0;
     },
 

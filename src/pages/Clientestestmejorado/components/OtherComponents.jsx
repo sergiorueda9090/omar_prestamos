@@ -561,13 +561,36 @@ export const HistorialSeguimiento = () => {
   const porcentajePagado = (totalPagado / saldoTotal) * 100;
 
   const getIconoEvento = (tipo) => {
-    const iconos = { creacion: <AddIcon />, pago: <MoneyIcon />, eliminacion_pago: <CloseIcon />, cambio_fecha: <CalendarIcon />, ampliacion: <SwapIcon />, liquidacion: <LiquidateIcon />, cambio_plazo: <InfoIcon /> };
+    const iconos = { creacion: <AddIcon />, pago: <MoneyIcon />, eliminacion_pago: <CloseIcon />, cambio_fecha: <CalendarIcon />, ampliacion: <SwapIcon />, liquidacion: <LiquidateIcon />, cambio_plazo: <InfoIcon />, cambio_estado: <InfoIcon /> };
     return iconos[tipo] || <InfoIcon />;
   };
 
   const getColorEvento = (tipo) => {
-    const colores = { creacion: 'primary', pago: 'success', eliminacion_pago: 'error', cambio_fecha: 'warning', ampliacion: 'info', liquidacion: 'error', cambio_plazo: 'info' };
+    const colores = { creacion: 'primary', pago: 'success', eliminacion_pago: 'error', cambio_fecha: 'warning', ampliacion: 'info', liquidacion: 'error', cambio_plazo: 'info', cambio_estado: 'warning' };
     return colores[tipo] || 'default';
+  };
+
+  const getEtiquetaTipo = (tipo) => {
+    const etiquetas = { creacion: 'Creación', pago: 'Pago', eliminacion_pago: 'Pago Eliminado', cambio_fecha: 'Cambio Fecha', ampliacion: 'Ampliación', liquidacion: 'Liquidación', cambio_plazo: 'Cambio Plazo', cambio_estado: 'Cambio Estado' };
+    return etiquetas[tipo] || tipo;
+  };
+
+  // Separa la descripcion automatica de la nota del usuario (separadas por ". ")
+  const parsearDescripcion = (descripcion) => {
+    if (!descripcion) return { detalle: '', nota: '' };
+    // Patrones que indican inicio de la parte automatica
+    const partes = descripcion.split(/\.\s+(?=[A-ZÁÉÍÓÚ])/);
+    if (partes.length <= 1) return { detalle: descripcion, nota: '' };
+
+    // La ultima parte que NO empiece con patron automatico es la nota del usuario
+    const patronesAuto = ['Pago de', 'Saldo total', 'Pago distribuido', 'Se suma', 'Interés:', 'Fecha:'];
+    const ultimaParte = partes[partes.length - 1];
+    const esAutomatica = patronesAuto.some(p => ultimaParte.startsWith(p));
+
+    if (!esAutomatica) {
+      return { detalle: partes.slice(0, -1).join('. '), nota: ultimaParte };
+    }
+    return { detalle: descripcion, nota: '' };
   };
 
   return (
@@ -588,18 +611,85 @@ export const HistorialSeguimiento = () => {
         {historial.length === 0 ? (
           <Alert severity="info">No hay eventos registrados.</Alert>
         ) : (
-          <List>
-            {historial.map((evento, index) => (
-              <ListItem key={evento.id || index} sx={{ borderLeft: 3, borderColor: `${getColorEvento(evento.tipo)}.main`, mb: 1, backgroundColor: 'grey.50' }}>
-                <Avatar sx={{ mr: 2, bgcolor: `${getColorEvento(evento.tipo)}.main` }}>{getIconoEvento(evento.tipo)}</Avatar>
-                <ListItemText
-                  primary={evento.titulo}
-                  secondary={<>{evento.descripcion}<br /><Typography variant="caption" color="text.secondary">{dayjs(evento.fecha).format('DD/MM/YYYY HH:mm')}</Typography></>}
-                />
-                {evento.monto && <Typography variant="h6" color={getColorEvento(evento.tipo) + '.main'}>${formatMoney(evento.monto)}</Typography>}
-              </ListItem>
-            ))}
-          </List>
+          <Box sx={{ position: 'relative', pl: 4, '&::before': { content: '""', position: 'absolute', left: 18, top: 0, bottom: 0, width: 2, backgroundColor: 'grey.300' } }}>
+            {historial.map((evento, index) => {
+              const color = getColorEvento(evento.tipo);
+              const { detalle, nota } = parsearDescripcion(evento.descripcion);
+
+              return (
+                <Box key={evento.id || index} sx={{ position: 'relative', mb: 2 }}>
+                  {/* Icono en la linea del timeline */}
+                  <Avatar
+                    sx={{
+                      width: 36, height: 36,
+                      bgcolor: `${color}.main`,
+                      position: 'absolute',
+                      left: -34, top: 8,
+                      border: '3px solid white',
+                      boxShadow: 1,
+                    }}
+                  >
+                    {getIconoEvento(evento.tipo)}
+                  </Avatar>
+
+                  {/* Card del evento */}
+                  <Card
+                    variant="outlined"
+                    sx={{
+                      ml: 1,
+                      borderLeft: 4,
+                      borderLeftColor: `${color}.main`,
+                      transition: 'box-shadow 0.2s',
+                      '&:hover': { boxShadow: 3 },
+                    }}
+                  >
+                    <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+                      {/* Header: titulo + chip tipo + monto */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 0.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>{evento.titulo}</Typography>
+                          <Chip label={getEtiquetaTipo(evento.tipo)} color={color} size="small" variant="outlined" sx={{ height: 22, fontSize: '11px' }} />
+                        </Box>
+                        {evento.monto && (
+                          <Typography variant="h6" sx={{ fontWeight: 'bold', color: `${color}.main` }}>
+                            ${formatMoney(evento.monto)}
+                          </Typography>
+                        )}
+                      </Box>
+
+                      {/* Descripcion automatica */}
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: nota ? 0.5 : 0 }}>
+                        {detalle}
+                      </Typography>
+
+                      {/* Nota del usuario (si existe) */}
+                      {nota && (
+                        <Box sx={{
+                          mt: 1, p: 1, pl: 1.5,
+                          backgroundColor: '#fff8e1',
+                          borderLeft: 3,
+                          borderLeftColor: 'warning.main',
+                          borderRadius: 1,
+                        }}>
+                          <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'warning.dark', display: 'block', mb: 0.25 }}>
+                            Nota:
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                            {nota}
+                          </Typography>
+                        </Box>
+                      )}
+
+                      {/* Fecha */}
+                      <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
+                        {dayjs(evento.fecha).format('DD/MM/YYYY HH:mm')}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Box>
+              );
+            })}
+          </Box>
         )}
       </Paper>
     </Box>
