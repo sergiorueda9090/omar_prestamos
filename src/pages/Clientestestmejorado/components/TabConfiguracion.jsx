@@ -119,14 +119,14 @@ const TabConfiguracion = () => {
 
     const interesTotal = monto * (interesVal / 100) * tiempo;
     const totalPagar = monto + interesTotal;
-    let cuotaMensual = totalPagar / tiempo;
+    let cuotaMensual = Math.ceil(totalPagar / tiempo / 1000) * 1000;
     const interesMensualPesos = interesTotal / tiempo;
 
     if (porcentajeInteresCheck) {
       switch (frecuenciaPago?.toLowerCase()) {
-        case 'quincenal': cuotaMensual /= 2; break;
-        case 'semanal':   cuotaMensual /= 4; break;
-        case 'diario':    cuotaMensual /= 30; break;
+        case 'quincenal': cuotaMensual = Math.ceil(cuotaMensual / 2 / 1000) * 1000; break;
+        case 'semanal':   cuotaMensual = Math.ceil(cuotaMensual / 4 / 1000) * 1000; break;
+        case 'diario':    cuotaMensual = Math.ceil(cuotaMensual / 30 / 1000) * 1000; break;
         default: break;
       }
     }

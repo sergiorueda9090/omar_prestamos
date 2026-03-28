@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
-  Box, Paper, Typography, TextField, Button, Grid, Card, CardContent,
+  Box, Paper, Typography, TextField, Button, Grid, InputAdornment,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Chip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
-  Alert, Divider,
+  Alert,
 } from '@mui/material';
 import {
   Payment as PaymentIcon, Close as CloseIcon,
   AccountBalanceWallet as WalletIcon, TrendingUp as InterestIcon,
-  CheckCircle as CheckIcon, Person as PersonIcon,
+  Person as PersonIcon, CalendarMonth as CalendarIcon,
+  Description as DescriptionIcon, AttachMoney as MoneyIcon,
+  Percent as PercentIcon, Schedule as ScheduleIcon,
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import Swal from 'sweetalert2';
@@ -24,6 +26,50 @@ import {
 
 
 // ============================================================================
+// ESTILOS COMPARTIDOS
+// ============================================================================
+
+const sxInput = (color = 'primary.main') => ({
+  '& .MuiOutlinedInput-root': {
+    borderRadius: 2,
+    backgroundColor: '#fff',
+    '&.Mui-focused fieldset': { borderColor: color, borderWidth: 2 },
+  },
+  '& .MuiInputLabel-root.Mui-focused': { color },
+});
+
+const SectionLabel = ({ children }) => (
+  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: 0.8 }}>
+    {children}
+  </Typography>
+);
+
+const StatCard = ({ label, value, bgColor, borderColor, textColor }) => (
+  <Paper elevation={0} sx={{ p: 1.5, textAlign: 'center', backgroundColor: bgColor, borderRadius: 2, border: `1px solid ${borderColor}` }}>
+    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', fontSize: '0.6rem', letterSpacing: 0.5, display: 'block', mb: 0.3 }}>{label}</Typography>
+    <Typography variant="h6" sx={{ fontWeight: 700, color: textColor, lineHeight: 1.3 }}>{value}</Typography>
+  </Paper>
+);
+
+const DialogHeader = ({ icon, iconBg, title, subtitle, borderColor, bgColor, onClose }) => (
+  <DialogTitle sx={{ backgroundColor: bgColor, borderBottom: `2px solid ${borderColor}`, py: 2 }}>
+    <Box display="flex" alignItems="center" justifyContent="space-between">
+      <Box display="flex" alignItems="center" gap={1.5}>
+        <Box sx={{ backgroundColor: iconBg, borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {icon}
+        </Box>
+        <Box>
+          <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>{title}</Typography>
+          <Typography variant="caption" color="text.secondary">{subtitle}</Typography>
+        </Box>
+      </Box>
+      <IconButton onClick={onClose} size="small" sx={{ '&:hover': { backgroundColor: 'error.light', color: 'white' } }}><CloseIcon /></IconButton>
+    </Box>
+  </DialogTitle>
+);
+
+
+// ============================================================================
 // BANNER: INFORMACION DEL CLIENTE (reutilizable en todos los modales)
 // ============================================================================
 
@@ -31,10 +77,10 @@ const BannerInfoCliente = () => {
   const { nombre, numeroTarjeta, porcentajeInteres, montoPrestamo } = useSelector(state => state.prestamosTestStore);
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, p: 1.5, backgroundColor: '#e3f2fd', borderRadius: 1, border: '1px solid #90caf9' }}>
-      <PersonIcon sx={{ color: 'primary.main', fontSize: 32 }} />
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, flex: 1 }}>
-        <Chip label={nombre || 'Sin nombre'} size="small" sx={{ fontWeight: 'bold', fontSize: '13px' }} />
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5, p: 1.5, backgroundColor: '#e3f2fd', borderRadius: 2, border: '1px solid #90caf9' }}>
+      <PersonIcon sx={{ color: 'primary.main', fontSize: 30 }} />
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.8, flex: 1 }}>
+        <Chip label={nombre || 'Sin nombre'} size="small" sx={{ fontWeight: 'bold', fontSize: '12px' }} />
         <Chip label={`# ${numeroTarjeta}`} size="small" variant="outlined" />
         <Chip label={`${porcentajeInteres}% interés`} size="small" variant="outlined" color="info" />
         <Chip label={`Capital: $${formatMoney(parseMoney(montoPrestamo))}`} size="small" variant="outlined" color="primary" />
@@ -53,6 +99,8 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
   const { cuotas } = useSelector(state => state.prestamosTestStore);
   const [montoPago, setMontoPago] = useState('');
   const [fechaPago, setFechaPago] = useState(dayjs().format('YYYY-MM-DD'));
+  const [fechaProximoPago, setFechaProximoPago] = useState('');
+  const [fechaPagoReal, setFechaPagoReal] = useState(dayjs().format('YYYY-MM-DD'));
   const [descripcion, setDescripcion] = useState('');
   const [distribucion, setDistribucion] = useState([]);
 
@@ -60,7 +108,7 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
   const saldoTotalPendiente = cuotasPendientes.reduce((sum, c) => sum + parseMoney(c.saldo || c.valor), 0);
 
   useEffect(() => {
-    if (open) { setMontoPago(''); setDistribucion([]); setFechaPago(dayjs().format('YYYY-MM-DD')); setDescripcion(''); }
+    if (open) { setMontoPago(''); setDistribucion([]); setFechaPago(dayjs().format('YYYY-MM-DD')); setFechaProximoPago(''); setFechaPagoReal(dayjs().format('YYYY-MM-DD')); setDescripcion(''); }
   }, [open]);
 
   const calcularDistribucion = (monto) => {
@@ -97,74 +145,136 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
   };
 
   const totalAbonar = distribucion.reduce((sum, d) => sum + d.abonar, 0);
+  const montoIngresado = parseMoney(montoPago);
+  const sobrante = montoIngresado > 0 ? montoIngresado - totalAbonar : 0;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        <Box display="flex" alignItems="center" justifyContent="space-between">
-          <Box display="flex" alignItems="center"><PaymentIcon sx={{ mr: 1, color: 'success.main' }} /><Typography variant="h6">Pagar Cuota Personalizado</Typography></Box>
-          <IconButton onClick={onClose} size="small"><CloseIcon /></IconButton>
-        </Box>
-      </DialogTitle>
-      <DialogContent dividers>
+      <DialogHeader
+        icon={<PaymentIcon sx={{ color: 'white', fontSize: 22 }} />}
+        iconBg="success.main" bgColor="#e8f5e9" borderColor="#4caf50"
+        title="Pagar Cuota Personalizado"
+        subtitle="Distribuye el pago entre cuotas pendientes"
+        onClose={onClose}
+      />
+
+      <DialogContent dividers sx={{ p: 3 }}>
         <BannerInfoCliente />
-        <Alert severity="info" sx={{ mb: 3 }}><strong>Pago flexible:</strong> El sistema distribuirá automáticamente el pago entre las cuotas pendientes en orden.</Alert>
-        <Card variant="outlined" sx={{ mb: 3, backgroundColor: 'grey.50' }}>
-          <CardContent>
-            <Grid container spacing={2}>
-              <Grid item xs={6}><Typography variant="body2" color="text.secondary">Cuotas Pendientes</Typography><Typography variant="h6">{cuotasPendientes.length}</Typography></Grid>
-              <Grid item xs={6}><Typography variant="body2" color="text.secondary">Saldo Total Pendiente</Typography><Typography variant="h6" color="error.main">${formatMoney(saldoTotalPendiente)}</Typography></Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12} md={6}><TextField fullWidth label="Monto a Pagar" value={montoPago} onChange={handleMontoChange} placeholder="Ingrese el monto" InputProps={{ startAdornment: <Typography sx={{ mr: 1 }}>$</Typography> }} /></Grid>
-          <Grid item xs={12} md={6}><TextField fullWidth type="date" label="Fecha de Pago" value={fechaPago} onChange={(e) => setFechaPago(e.target.value)} InputLabelProps={{ shrink: true }} /></Grid>
-          <Grid item xs={12}><TextField fullWidth multiline rows={2} label="Descripción (opcional)" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Ej: Pago parcial, abono anticipado, etc." /></Grid>
+
+        {/* Resumen */}
+        <Grid container spacing={1.5} sx={{ mb: 3 }}>
+          <Grid item xs={6} sm={3}>
+            <StatCard label="Cuotas Pendientes" value={cuotasPendientes.length} bgColor="#fff3e0" borderColor="#ffe0b2" textColor="#e65100" />
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <StatCard label="Saldo Pendiente" value={`$${formatMoney(saldoTotalPendiente)}`} bgColor="#fce4ec" borderColor="#f8bbd0" textColor="#c62828" />
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <StatCard label="Monto a Pagar" value={`$${montoPago || '0'}`} bgColor="#e8f5e9" borderColor="#c8e6c9" textColor="#2e7d32" />
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <StatCard label="Cuotas a Cubrir" value={distribucion.length} bgColor="#e3f2fd" borderColor="#bbdefb" textColor="#1565c0" />
+          </Grid>
         </Grid>
+
+        {/* Formulario */}
+        <Paper variant="outlined" sx={{ p: 2.5, mb: 3, borderRadius: 2 }}>
+          <SectionLabel>Datos del Pago</SectionLabel>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth label="Monto a Pagar" value={montoPago} onChange={handleMontoChange}
+                placeholder="Ej: 500.000"
+                InputProps={{ startAdornment: <InputAdornment position="start"><MoneyIcon sx={{ color: 'success.main' }} /></InputAdornment> }}
+                sx={sxInput('success.main')}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth type="date" label="Fecha de Pago" value={fechaPago}
+                onChange={(e) => setFechaPago(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                sx={sxInput()}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth type="date" label="Fecha Próximo Pago" value={fechaProximoPago}
+                onChange={(e) => setFechaProximoPago(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                sx={sxInput()}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth type="date" label="Fecha Pago Real" value={fechaPagoReal}
+                onChange={(e) => setFechaPagoReal(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                sx={sxInput()}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth multiline rows={3} label="Descripción (opcional)" value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                placeholder="Ej: Pago parcial, abono anticipado, etc."
+                sx={sxInput()}
+              />
+            </Grid>
+          </Grid>
+        </Paper>
+
+        {/* Tabla de distribución */}
         {distribucion.length > 0 && (
-          <>
-            <Divider sx={{ my: 2 }} />
-            <Card variant="outlined" sx={{ backgroundColor: 'success.50' }}>
-              <CardContent>
-                <Typography variant="subtitle1" color="success.main" gutterBottom sx={{ fontWeight: 'bold' }}>Distribución del Pago</Typography>
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: 'success.main' }}>
-                        <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Cuota</TableCell>
-                        <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Saldo Antes</TableCell>
-                        <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Abonar</TableCell>
-                        <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Saldo Después</TableCell>
-                        <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}>Estado</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {distribucion.map((dist, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell><strong>#{dist.numero}</strong></TableCell>
-                          <TableCell align="right">${formatMoney(dist.saldoAntes)}</TableCell>
-                          <TableCell align="right" sx={{ color: 'success.main', fontWeight: 'bold' }}>${formatMoney(dist.abonar)}</TableCell>
-                          <TableCell align="right">${formatMoney(dist.saldoDespues)}</TableCell>
-                          <TableCell align="center"><Chip label={dist.estado === 'pagado' ? 'Pagado' : 'Parcial'} color={dist.estado === 'pagado' ? 'success' : 'warning'} size="small" /></TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow sx={{ backgroundColor: 'grey.200' }}>
-                        <TableCell colSpan={2}><strong>TOTAL</strong></TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main', fontSize: '16px' }}>${formatMoney(totalAbonar)}</TableCell>
-                        <TableCell colSpan={2}></TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
-          </>
+          <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid #c8e6c9' }}>
+            <Box sx={{ px: 2.5, py: 1.5, backgroundColor: '#e8f5e9', borderBottom: '1px solid #c8e6c9' }}>
+              <SectionLabel>Distribución del Pago</SectionLabel>
+            </Box>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: '#43a047' }}>
+                    <TableCell sx={{ color: 'white', fontWeight: 700, fontSize: '0.75rem' }}>Cuota</TableCell>
+                    <TableCell align="right" sx={{ color: 'white', fontWeight: 700, fontSize: '0.75rem' }}>Saldo Antes</TableCell>
+                    <TableCell align="right" sx={{ color: 'white', fontWeight: 700, fontSize: '0.75rem' }}>Abonar</TableCell>
+                    <TableCell align="right" sx={{ color: 'white', fontWeight: 700, fontSize: '0.75rem' }}>Saldo Después</TableCell>
+                    <TableCell align="center" sx={{ color: 'white', fontWeight: 700, fontSize: '0.75rem' }}>Estado</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {distribucion.map((dist, idx) => (
+                    <TableRow key={idx} sx={{ '&:nth-of-type(even)': { backgroundColor: '#f1f8e9' }, '&:hover': { backgroundColor: '#dcedc8' } }}>
+                      <TableCell><Chip label={`#${dist.numero}`} size="small" variant="outlined" sx={{ fontWeight: 700 }} /></TableCell>
+                      <TableCell align="right" sx={{ fontFamily: 'monospace' }}>${formatMoney(dist.saldoAntes)}</TableCell>
+                      <TableCell align="right" sx={{ color: '#2e7d32', fontWeight: 700, fontFamily: 'monospace' }}>${formatMoney(dist.abonar)}</TableCell>
+                      <TableCell align="right" sx={{ fontFamily: 'monospace' }}>${formatMoney(dist.saldoDespues)}</TableCell>
+                      <TableCell align="center"><Chip label={dist.estado === 'pagado' ? 'Pagado' : 'Parcial'} color={dist.estado === 'pagado' ? 'success' : 'warning'} size="small" sx={{ fontWeight: 600, minWidth: 70 }} /></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Box sx={{ px: 2.5, py: 1.5, backgroundColor: '#e8f5e9', borderTop: '1px solid #c8e6c9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>Total Abonado</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: '#2e7d32' }}>${formatMoney(totalAbonar)}</Typography>
+            </Box>
+            {sobrante > 0 && (
+              <Alert severity="warning" sx={{ borderRadius: 0 }}>
+                <strong>Sobrante: ${formatMoney(sobrante)}</strong> — El monto ingresado supera el saldo pendiente.
+              </Alert>
+            )}
+          </Paper>
         )}
       </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} color="inherit">Cancelar</Button>
-        <Button onClick={handleConfirmar} variant="contained" color="success" disabled={!montoPago || parseMoney(montoPago) <= 0 || distribucion.length === 0} startIcon={<PaymentIcon />}>Confirmar Pago</Button>
+
+      <DialogActions sx={{ px: 3, py: 2, backgroundColor: '#fafafa', borderTop: '1px solid #e0e0e0', gap: 1 }}>
+        <Button onClick={onClose} variant="outlined" color="inherit" sx={{ borderRadius: 2, px: 3 }}>Cancelar</Button>
+        <Button onClick={handleConfirmar} variant="contained" color="success" disabled={!montoPago || parseMoney(montoPago) <= 0 || distribucion.length === 0} startIcon={<PaymentIcon />} sx={{ borderRadius: 2, px: 3, fontWeight: 700 }}>
+          Confirmar Pago {totalAbonar > 0 ? `$${formatMoney(totalAbonar)}` : ''}
+        </Button>
       </DialogActions>
     </Dialog>
   );
@@ -177,11 +287,17 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
 
 const DialogoPagoInteresPersonalizado = ({ open, onClose }) => {
   const dispatch = useDispatch();
+  const { porcentajeInteres, montoPrestamo } = useSelector(state => state.prestamosTestStore);
   const [montoPago, setMontoPago] = useState('');
   const [fechaPago, setFechaPago] = useState(dayjs().format('YYYY-MM-DD'));
+  const [fechaProximoPago, setFechaProximoPago] = useState('');
+  const [fechaPagoReal, setFechaPagoReal] = useState(dayjs().format('YYYY-MM-DD'));
   const [descripcion, setDescripcion] = useState('');
 
-  useEffect(() => { if (open) { setMontoPago(''); setFechaPago(dayjs().format('YYYY-MM-DD')); setDescripcion(''); } }, [open]);
+  const capital = parseMoney(montoPrestamo);
+  const interesMensualRef = capital * (parseFloat(porcentajeInteres) || 0) / 100;
+
+  useEffect(() => { if (open) { setMontoPago(''); setFechaPago(dayjs().format('YYYY-MM-DD')); setFechaProximoPago(''); setFechaPagoReal(dayjs().format('YYYY-MM-DD')); setDescripcion(''); } }, [open]);
 
   const handleConfirmar = () => {
     const monto = parseMoney(montoPago);
@@ -192,24 +308,96 @@ const DialogoPagoInteresPersonalizado = ({ open, onClose }) => {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
-        <Box display="flex" alignItems="center" justifyContent="space-between">
-          <Box display="flex" alignItems="center"><InterestIcon sx={{ mr: 1, color: 'warning.main' }} /><Typography variant="h6">Pagar Interés Personalizado</Typography></Box>
-          <IconButton onClick={onClose} size="small"><CloseIcon /></IconButton>
-        </Box>
-      </DialogTitle>
-      <DialogContent dividers>
+      <DialogHeader
+        icon={<InterestIcon sx={{ color: 'white', fontSize: 22 }} />}
+        iconBg="warning.main" bgColor="#fff8e1" borderColor="#ffa000"
+        title="Pagar Interés Personalizado"
+        subtitle="Se suma directamente a las utilidades"
+        onClose={onClose}
+      />
+
+      <DialogContent dividers sx={{ p: 3 }}>
         <BannerInfoCliente />
-        <Alert severity="warning" sx={{ mb: 3 }}><strong>Pago de interés:</strong> Se suma directamente a las 3 utilidades. No afecta el saldo de las cuotas.</Alert>
-        <Grid container spacing={2}>
-          <Grid item xs={12}><TextField fullWidth label="Monto del Interés" value={montoPago} onChange={(e) => setMontoPago(formatMoney(e.target.value.replace(/\D/g, '')))} InputProps={{ startAdornment: <Typography sx={{ mr: 1 }}>$</Typography> }} /></Grid>
-          <Grid item xs={12}><TextField fullWidth type="date" label="Fecha de Pago" value={fechaPago} onChange={(e) => setFechaPago(e.target.value)} InputLabelProps={{ shrink: true }} /></Grid>
-          <Grid item xs={12}><TextField fullWidth multiline rows={2} label="Descripción (opcional)" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Ej: Interés por mora" /></Grid>
+
+        {/* Referencia */}
+        <Grid container spacing={1.5} sx={{ mb: 3 }}>
+          <Grid item xs={6}>
+            <StatCard label="Tasa de Interés" value={`${porcentajeInteres}%`} bgColor="#fff8e1" borderColor="#ffe082" textColor="#e65100" />
+          </Grid>
+          <Grid item xs={6}>
+            <StatCard label="Interés Mensual Ref." value={`$${formatMoney(interesMensualRef)}`} bgColor="#fff3e0" borderColor="#ffcc80" textColor="#bf360c" />
+          </Grid>
         </Grid>
+
+        <Alert severity="warning" variant="outlined" sx={{ mb: 3, borderRadius: 2 }}>
+          Este pago <strong>no afecta</strong> el saldo de las cuotas. Se registra como ingreso adicional de interés y se refleja en las 3 utilidades.
+        </Alert>
+
+        {/* Formulario */}
+        <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
+          <SectionLabel>Datos del Pago</SectionLabel>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth label="Monto del Interés" value={montoPago}
+                onChange={(e) => setMontoPago(formatMoney(e.target.value.replace(/\D/g, '')))}
+                placeholder="Ej: 100.000"
+                InputProps={{ startAdornment: <InputAdornment position="start"><MoneyIcon sx={{ color: 'warning.main' }} /></InputAdornment> }}
+                sx={sxInput('warning.main')}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth type="date" label="Fecha de Pago" value={fechaPago}
+                onChange={(e) => setFechaPago(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                sx={sxInput()}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth type="date" label="Fecha Próximo Pago" value={fechaProximoPago}
+                onChange={(e) => setFechaProximoPago(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                sx={sxInput()}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth type="date" label="Fecha Pago Real" value={fechaPagoReal}
+                onChange={(e) => setFechaPagoReal(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                sx={sxInput()}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth multiline rows={3} label="Descripción (opcional)" value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                placeholder="Ej: Interés por mora, interés adicional, etc."
+                sx={sxInput()}
+              />
+            </Grid>
+          </Grid>
+        </Paper>
+
+        {/* Preview */}
+        {parseMoney(montoPago) > 0 && (
+          <Paper elevation={0} sx={{ mt: 3, p: 2, textAlign: 'center', backgroundColor: '#fff8e1', borderRadius: 2, border: '2px solid #ffa000' }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem' }}>Interés a Registrar</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: '#e65100' }}>${montoPago}</Typography>
+          </Paper>
+        )}
       </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} color="inherit">Cancelar</Button>
-        <Button onClick={handleConfirmar} variant="contained" color="warning" disabled={!montoPago || parseMoney(montoPago) <= 0} startIcon={<InterestIcon />}>Registrar Interés</Button>
+
+      <DialogActions sx={{ px: 3, py: 2, backgroundColor: '#fafafa', borderTop: '1px solid #e0e0e0', gap: 1 }}>
+        <Button onClick={onClose} variant="outlined" color="inherit" sx={{ borderRadius: 2, px: 3 }}>Cancelar</Button>
+        <Button onClick={handleConfirmar} variant="contained" color="warning" disabled={!montoPago || parseMoney(montoPago) <= 0} startIcon={<InterestIcon />} sx={{ borderRadius: 2, px: 3, fontWeight: 700 }}>
+          Registrar Interés {parseMoney(montoPago) > 0 ? `$${montoPago}` : ''}
+        </Button>
       </DialogActions>
     </Dialog>
   );
@@ -224,6 +412,8 @@ const DialogoPagarSaldoTotal = ({ open, onClose }) => {
   const dispatch = useDispatch();
   const { montoPrestamo, cuotas } = useSelector(state => state.prestamosTestStore);
   const [fechaPago, setFechaPago] = useState(dayjs().format('YYYY-MM-DD'));
+  const [fechaProximoPago, setFechaProximoPago] = useState('');
+  const [fechaPagoReal, setFechaPagoReal] = useState(dayjs().format('YYYY-MM-DD'));
   const [porcentajeInteres, setPorcentajeInteres] = useState('');
   const [tiempo, setTiempo] = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -235,12 +425,11 @@ const DialogoPagarSaldoTotal = ({ open, onClose }) => {
   const totalBruto = tiempo !== '' && meses > 0 ? dineroPrestado + (dineroPrestado * (interes / 100) * meses) : 0;
   const totalAPagar = Math.max(0, totalBruto - abonoTotal);
 
-  useEffect(() => { if (open) { setFechaPago(dayjs().format('YYYY-MM-DD')); setPorcentajeInteres(''); setTiempo(''); setDescripcion(''); } }, [open]);
+  useEffect(() => { if (open) { setFechaPago(dayjs().format('YYYY-MM-DD')); setFechaProximoPago(''); setFechaPagoReal(dayjs().format('YYYY-MM-DD')); setPorcentajeInteres(''); setTiempo(''); setDescripcion(''); } }, [open]);
 
   const handleConfirmar = async () => {
     if (totalAPagar <= 0) { alert('Ingrese el interés y el tiempo para calcular el total a pagar'); return; }
 
-    // Primera alerta: resumen de lo que va a hacer
     const primera = await Swal.fire({
       title: '¿Pagar saldo total?',
       html:
@@ -261,9 +450,8 @@ const DialogoPagarSaldoTotal = ({ open, onClose }) => {
 
     if (!primera.isConfirmed) return;
 
-    // Segunda alerta: advertencia final irreversible
     const segunda = await Swal.fire({
-      title: '⚠️ Acción irreversible',
+      title: 'Acción irreversible',
       html:
         `<p style="font-size:15px;">Esta operación <strong>marcará el préstamo como PAGADO</strong> y <strong>no se podrá modificar</strong> después.</p>` +
         `<p style="font-size:14px; color:#d32f2f; margin-top:10px;"><strong>¿Está completamente seguro de proceder?</strong></p>`,
@@ -283,42 +471,106 @@ const DialogoPagarSaldoTotal = ({ open, onClose }) => {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
-        <Box display="flex" alignItems="center" justifyContent="space-between">
-          <Box display="flex" alignItems="center"><WalletIcon sx={{ mr: 1, color: 'error.main' }} /><Typography variant="h6">Pagar Saldo Total</Typography></Box>
-          <IconButton onClick={onClose} size="small"><CloseIcon /></IconButton>
-        </Box>
-      </DialogTitle>
-      <DialogContent dividers>
+      <DialogHeader
+        icon={<WalletIcon sx={{ color: 'white', fontSize: 22 }} />}
+        iconBg="error.main" bgColor="#ffebee" borderColor="#ef5350"
+        title="Pagar Saldo Total"
+        subtitle="Liquidación completa del préstamo"
+        onClose={onClose}
+      />
+
+      <DialogContent dividers sx={{ p: 3 }}>
         <BannerInfoCliente />
-        <Card variant="outlined" sx={{ mb: 3, backgroundColor: 'grey.50' }}>
-          <CardContent>
-            <Grid container spacing={2}>
-              <Grid item xs={6}><Typography variant="body2" color="text.secondary">Dinero Prestado</Typography><Typography variant="h6" color="primary.main">${formatMoney(dineroPrestado)}</Typography></Grid>
-              <Grid item xs={6}><Typography variant="body2" color="text.secondary">Abono Total</Typography><Typography variant="h6" color="success.main">${formatMoney(abonoTotal)}</Typography></Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12} md={6}><TextField fullWidth label="Interés (%)" type="number" value={porcentajeInteres} onChange={(e) => setPorcentajeInteres(e.target.value)} /></Grid>
-          <Grid item xs={12} md={6}><TextField fullWidth label="Tiempo (meses)" type="number" value={tiempo} onChange={(e) => setTiempo(e.target.value)} /></Grid>
+
+        {/* Resumen */}
+        <Grid container spacing={1.5} sx={{ mb: 3 }}>
+          <Grid item xs={6}>
+            <StatCard label="Capital Prestado" value={`$${formatMoney(dineroPrestado)}`} bgColor="#e3f2fd" borderColor="#bbdefb" textColor="#1565c0" />
+          </Grid>
+          <Grid item xs={6}>
+            <StatCard label="Abono Acumulado" value={`$${formatMoney(abonoTotal)}`} bgColor="#e8f5e9" borderColor="#c8e6c9" textColor="#2e7d32" />
+          </Grid>
         </Grid>
-        <TextField fullWidth type="date" label="Fecha de Pago" value={fechaPago} onChange={(e) => setFechaPago(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ mb: 3 }} />
-        <TextField fullWidth multiline rows={2} label="Descripción (opcional)" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Ej: Liquidación anticipada, pago total, etc." sx={{ mb: 3 }} />
-        <Card variant="outlined" sx={{ border: 2, borderColor: totalBruto > 0 ? 'error.main' : 'grey.300' }}>
-          <CardContent>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>Total a Pagar</Typography>
-            {totalBruto > 0 ? (
-              <Typography variant="h4" color="error.main" sx={{ fontWeight: 'bold' }}>${formatMoney(totalAPagar)}</Typography>
-            ) : (
-              <Typography variant="h4" color="text.disabled" sx={{ fontWeight: 'bold' }}>$0</Typography>
-            )}
-          </CardContent>
-        </Card>
+
+        {/* Formulario */}
+        <Paper variant="outlined" sx={{ p: 2.5, mb: 3, borderRadius: 2 }}>
+          <SectionLabel>Parámetros de Liquidación</SectionLabel>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth label="Interés (%)" type="number" value={porcentajeInteres}
+                onChange={(e) => setPorcentajeInteres(e.target.value)}
+                placeholder="Ej: 10"
+                InputProps={{ startAdornment: <InputAdornment position="start"><PercentIcon sx={{ color: 'error.main' }} /></InputAdornment> }}
+                sx={sxInput('error.main')}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth label="Tiempo (meses)" type="number" value={tiempo}
+                onChange={(e) => setTiempo(e.target.value)}
+                placeholder="Ej: 6"
+                InputProps={{ startAdornment: <InputAdornment position="start"><ScheduleIcon sx={{ color: 'error.main' }} /></InputAdornment> }}
+                sx={sxInput('error.main')}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth type="date" label="Fecha de Pago" value={fechaPago}
+                onChange={(e) => setFechaPago(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                sx={sxInput()}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth type="date" label="Fecha Próximo Pago" value={fechaProximoPago}
+                onChange={(e) => setFechaProximoPago(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                sx={sxInput()}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth type="date" label="Fecha Pago Real" value={fechaPagoReal}
+                onChange={(e) => setFechaPagoReal(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                sx={sxInput()}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth multiline rows={3} label="Descripción (opcional)" value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                placeholder="Ej: Liquidación anticipada, pago total, etc."
+                sx={sxInput()}
+              />
+            </Grid>
+          </Grid>
+        </Paper>
+
+        {/* Total a pagar */}
+        <Paper elevation={0} sx={{ p: 2.5, textAlign: 'center', borderRadius: 2, border: `2px solid ${totalBruto > 0 ? '#ef5350' : '#e0e0e0'}`, backgroundColor: totalBruto > 0 ? '#ffebee' : '#fafafa' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem', letterSpacing: 0.5 }}>Total a Pagar</Typography>
+          <Typography variant="h3" sx={{ fontWeight: 700, color: totalBruto > 0 ? '#c62828' : 'text.disabled', lineHeight: 1.3 }}>
+            ${formatMoney(totalAPagar)}
+          </Typography>
+          {totalBruto > 0 && abonoTotal > 0 && (
+            <Typography variant="caption" color="text.secondary">
+              Bruto: ${formatMoney(totalBruto)} - Abono: ${formatMoney(abonoTotal)}
+            </Typography>
+          )}
+        </Paper>
       </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} color="inherit">Cancelar</Button>
-        <Button onClick={handleConfirmar} variant="contained" color="error" disabled={totalAPagar <= 0} startIcon={<WalletIcon />}>Pagar ${formatMoney(totalAPagar)}</Button>
+
+      <DialogActions sx={{ px: 3, py: 2, backgroundColor: '#fafafa', borderTop: '1px solid #e0e0e0', gap: 1 }}>
+        <Button onClick={onClose} variant="outlined" color="inherit" sx={{ borderRadius: 2, px: 3 }}>Cancelar</Button>
+        <Button onClick={handleConfirmar} variant="contained" color="error" disabled={totalAPagar <= 0} startIcon={<WalletIcon />} sx={{ borderRadius: 2, px: 3, fontWeight: 700 }}>
+          Pagar ${formatMoney(totalAPagar)}
+        </Button>
       </DialogActions>
     </Dialog>
   );

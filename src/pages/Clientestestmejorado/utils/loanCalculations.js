@@ -34,7 +34,7 @@ export const calcularInteresSimple = (capital, tasaMensual, numeroCuotas, duraci
   const mesesParaInteres = duracionMeses !== null ? duracionMeses : numeroCuotas;
   const interesMensual = capital * (tasaMensual / 100);
   const totalInteres = interesMensual * mesesParaInteres;
-  const valorCuota = (capital + totalInteres) / numeroCuotas;
+  const valorCuota = Math.ceil((capital + totalInteres) / numeroCuotas / 1000) * 1000;
   const saldoTotal = capital + totalInteres;
 
   return {
@@ -174,5 +174,5 @@ export const calcularPorcentajeCapitalRecuperado = (cuotasPagadas, montoOriginal
  */
 export const calcularInteresCuota = (montoOriginal, tasaMensual, numeroCuotas, duracionMeses = null) => {
   const { totalInteres } = calcularInteresSimple(montoOriginal, tasaMensual, numeroCuotas, duracionMeses);
-  return totalInteres / numeroCuotas;
+  return Math.ceil(totalInteres / numeroCuotas / 1000) * 1000;
 };
