@@ -578,12 +578,24 @@ export const actionEliminarPagoCuota = (cuotaId) => {
 // Proceso: liquida, calcula saldo a favor, genera nuevo cronograma.
 // =============================================================================
 
-export const actionAmpliarPrestamo = (montoAdicional, nuevaTasa, nuevasCuotas) => {
+export const actionAmpliarPrestamo = (montoAdicional, nuevaTasa, nuevasCuotas, tasaLiquidacion = null, plazoLiquidacion = null) => {
   return async (dispatch, getState) => {
     await dispatch(handleShowBackDrop());
 
     const { authStore, prestamosTestStore } = getState();
     const { id } = prestamosTestStore;
+
+    const data = {
+      monto_adicional: String(montoAdicional).replace(/\./g, ''),
+      nueva_tasa: parseFloat(nuevaTasa),
+      nuevas_cuotas: parseInt(nuevasCuotas),
+    };
+    if (tasaLiquidacion !== null && tasaLiquidacion !== undefined && tasaLiquidacion !== '') {
+      data.tasa_liquidacion = parseFloat(tasaLiquidacion);
+    }
+    if (plazoLiquidacion !== null && plazoLiquidacion !== undefined && plazoLiquidacion !== '') {
+      data.plazo_liquidacion = parseInt(plazoLiquidacion);
+    }
 
     const options = {
       method: 'POST',
@@ -592,11 +604,7 @@ export const actionAmpliarPrestamo = (montoAdicional, nuevaTasa, nuevasCuotas) =
         Authorization: `Bearer ${authStore.token}`,
         "Content-Type": "application/json",
       },
-      data: {
-        monto_adicional: String(montoAdicional).replace(/\./g, ''),
-        nueva_tasa: parseFloat(nuevaTasa),
-        nuevas_cuotas: parseInt(nuevasCuotas),
-      },
+      data,
     };
 
     try {
