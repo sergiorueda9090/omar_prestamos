@@ -488,6 +488,49 @@ export const actionPagarSaldoTotal = (porcentajeInteres, tiempo, fechaPago, desc
 
 
 // =============================================================================
+// REVERTIR PAGO SALDO TOTAL: Restaura estado previo del prestamo
+// =============================================================================
+// Endpoint: POST /clientes/api/v2/pagos/<id>/revertir-saldo-total/
+// Requiere que el Pago tenga snapshot (creado en la version nueva).
+// =============================================================================
+
+export const actionRevertirPagoSaldoTotal = (pagoId) => {
+  return async (dispatch, getState) => {
+    await dispatch(handleShowBackDrop());
+
+    const { authStore } = getState();
+
+    const options = {
+      method: 'POST',
+      url: `${dominio}${path}pagos/${pagoId}/revertir-saldo-total/`,
+      headers: {
+        Authorization: `Bearer ${authStore.token}`,
+      },
+    };
+
+    try {
+      const response = await axios.request(options);
+
+      if (response.status === 200) {
+        const datosRedux = mapearRespuestaARedux(response.data);
+        await dispatch(showData(datosRedux));
+        await dispatch(handleHideBackDrop());
+        await alertaEliminado("Pago de saldo total revertido");
+        return;
+      }
+    } catch (error) {
+      console.error("Error al revertir pago de saldo total:", error);
+      const msg = error.response?.data?.error || "Error al revertir pago de saldo total";
+      await dispatch(handleHideBackDrop());
+      await alertaError(msg);
+      return;
+    }
+    await dispatch(handleHideBackDrop());
+  };
+};
+
+
+// =============================================================================
 // CAMBIAR FECHA CUOTA: Cambiar la fecha de pago de una cuota
 // =============================================================================
 // Endpoint: PUT /clientes/api/v2/cuotas/<id>/cambiar-fecha/

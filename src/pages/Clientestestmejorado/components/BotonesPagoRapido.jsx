@@ -12,6 +12,7 @@ import {
   Person as PersonIcon, CalendarMonth as CalendarIcon,
   Description as DescriptionIcon, AttachMoney as MoneyIcon,
   Percent as PercentIcon, Schedule as ScheduleIcon,
+  Undo as UndoIcon,
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import Swal from 'sweetalert2';
@@ -22,6 +23,7 @@ import {
   actionPagarCuota,
   actionPagarInteres,
   actionPagarSaldoTotal,
+  actionRevertirPagoSaldoTotal,
 } from '../../../store/prestamosTestStore/prestamosTestStoreActions';
 
 
@@ -582,13 +584,56 @@ const DialogoPagarSaldoTotal = ({ open, onClose }) => {
 // ============================================================================
 
 const BotonesPagoRapido = () => {
-  const { cuotas, valorCuota } = useSelector(state => state.prestamosTestStore);
+  const dispatch = useDispatch();
+  const { cuotas, valorCuota, pagos } = useSelector(state => state.prestamosTestStore);
   const [dialogoCuotaAbierto, setDialogoCuotaAbierto] = useState(false);
   const [dialogoInteresAbierto, setDialogoInteresAbierto] = useState(false);
   const [dialogoSaldoTotalAbierto, setDialogoSaldoTotalAbierto] = useState(false);
 
   const cuotasPendientes = cuotas.filter(c => c.estado_pago !== 'pagado');
   const saldoTotalPendiente = cuotasPendientes.reduce((sum, c) => sum + parseMoney(c.saldo !== undefined ? c.saldo : c.valor), 0);
+
+  // Pago de saldo total mas reciente con snapshot (revertible)
+  const pagoSaldoTotalRevertible = (pagos || [])
+    .filter(p => p.tipo_pago === 'saldo_total' && p.tiene_snapshot)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+  const handleRevertirSaldoTotal = async () => {
+    if (!pagoSaldoTotalRevertible) return;
+
+    const primera = await Swal.fire({
+      title: '¿Revertir pago de saldo total?',
+      html:
+        `<div style="text-align:left; font-size:14px;">` +
+        `<p>Se restaurará el estado del préstamo y de <strong>todas las cuotas</strong> tal como estaban antes del pago.</p>` +
+        `<p><strong>Monto del pago:</strong> $${formatMoney(parseMoney(pagoSaldoTotalRevertible.monto))}</p>` +
+        `<p><strong>Fecha:</strong> ${pagoSaldoTotalRevertible.fecha}</p>` +
+        `</div>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d32f2f',
+      cancelButtonColor: '#757575',
+      confirmButtonText: 'Sí, revertir',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!primera.isConfirmed) return;
+
+    const segunda = await Swal.fire({
+      title: 'Confirmar reversión',
+      html:
+        `<p style="font-size:15px;">El préstamo volverá a estado <strong>vigente</strong> y las cuotas recuperarán sus valores y abonos originales.</p>` +
+        `<p style="font-size:14px; color:#d32f2f; margin-top:10px;"><strong>¿Continuar?</strong></p>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d32f2f',
+      cancelButtonColor: '#757575',
+      confirmButtonText: 'Confirmar reversión',
+      cancelButtonText: 'No, volver atrás',
+    });
+    if (!segunda.isConfirmed) return;
+
+    dispatch(actionRevertirPagoSaldoTotal(pagoSaldoTotalRevertible.id));
+  };
 
   return (
     <>
@@ -614,6 +659,28 @@ const BotonesPagoRapido = () => {
             </Button>
           </Grid>
         </Grid>
+
+        {pagoSaldoTotalRevertible && (
+          <Alert
+            severity="info"
+            sx={{ mt: 2, alignItems: 'center' }}
+            action={
+              <Button
+                color="error"
+                variant="outlined"
+                size="small"
+                startIcon={<UndoIcon />}
+                onClick={handleRevertirSaldoTotal}
+              >
+                Revertir
+              </Button>
+            }
+          >
+            Pago de saldo total registrado el {pagoSaldoTotalRevertible.fecha} por
+            {' '}<strong>${formatMoney(parseMoney(pagoSaldoTotalRevertible.monto))}</strong>.
+            Si fue un error, puede revertirlo y restaurar el estado anterior del préstamo.
+          </Alert>
+        )}
       </Paper>
 
       <DialogoPagoCuotaPersonalizado open={dialogoCuotaAbierto} onClose={() => setDialogoCuotaAbierto(false)} />

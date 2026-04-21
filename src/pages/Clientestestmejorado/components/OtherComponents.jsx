@@ -160,9 +160,17 @@ export const DialogoCalcularPagoSaldo = () => {
 
 export const LoanInstallmentsManager = ({ cuotas, pagosIntereses = [] }) => {
   const dispatch = useDispatch();
+  const pagos = useSelector(state => state.prestamosTestStore.pagos) || [];
   const [dialogoFechaAbierto, setDialogoFechaAbierto] = useState(false);
   const [dialogoEliminarAbierto, setDialogoEliminarAbierto] = useState(false);
   const [cuotaSeleccionada, setCuotaSeleccionada] = useState(null);
+
+  // Si existe un pago de saldo total activo (con snapshot), las cuotas fueron
+  // marcadas como pagadas en bloque. No se deben poder eliminar pagos
+  // individuales hasta que se revierta el saldo total.
+  const hayPagoSaldoTotalActivo = pagos.some(
+    (p) => p.tipo_pago === 'saldo_total' && p.tiene_snapshot,
+  );
 
   const getEstadoChip = (estado) => {
     const configs = {
@@ -228,9 +236,19 @@ export const LoanInstallmentsManager = ({ cuotas, pagosIntereses = [] }) => {
             </Box>
             <Box sx={{ p: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
               {parseFloat(cuota.abonado) > 0 && (
-                <Button size="small" variant="outlined" color="error" onClick={() => { setCuotaSeleccionada(cuota); setDialogoEliminarAbierto(true); }} sx={{ minWidth: 'auto', px: 1, fontSize: '11px' }}>
-                  <CloseIcon fontSize="small" />
-                </Button>
+                hayPagoSaldoTotalActivo ? (
+                  <Tooltip title="Primero revierta el pago de saldo total para modificar cuotas individuales">
+                    <span>
+                      <Button size="small" variant="outlined" color="error" disabled sx={{ minWidth: 'auto', px: 1, fontSize: '11px' }}>
+                        <CloseIcon fontSize="small" />
+                      </Button>
+                    </span>
+                  </Tooltip>
+                ) : (
+                  <Button size="small" variant="outlined" color="error" onClick={() => { setCuotaSeleccionada(cuota); setDialogoEliminarAbierto(true); }} sx={{ minWidth: 'auto', px: 1, fontSize: '11px' }}>
+                    <CloseIcon fontSize="small" />
+                  </Button>
+                )
               )}
             </Box>
           </Box>
@@ -337,6 +355,7 @@ export const LoanExtensionPanel = ({
   cuotasPagadas = 0,
   totalAbonado = 0,
   cuotas = [],
+  pagosIntereses = [],
 }) => {
   const [montoAdicional, setMontoAdicional] = useState('');
   const [nuevaTasa, setNuevaTasa] = useState(tasaOriginal.toString());
@@ -416,6 +435,7 @@ export const LoanExtensionPanel = ({
         cuotasRestantes={cuotasRestantes}
         cuotasPagadas={cuotasPagadas}
         cuotas={cuotas}
+        pagosIntereses={pagosIntereses}
       />
     </Paper>
   );
@@ -439,6 +459,7 @@ export const DialogoLiquidacion = ({
   cuotasRestantes,
   cuotasPagadas,
   cuotas = [],
+  pagosIntereses = [],
 }) => {
   const dispatch = useDispatch();
   const [tasaLiquidacion, setTasaLiquidacion] = useState('');
@@ -453,7 +474,13 @@ export const DialogoLiquidacion = ({
     }
   }, [open, tasaOriginal, cuotasRestantes]);
 
-  const totalPagado = cuotas.reduce((sum, c) => sum + parseMoney(c.abonado || 0), 0);
+  const totalPagadoCuotas = cuotas.reduce((sum, c) => sum + parseMoney(c.abonado || 0), 0);
+  // Solo pagos de interes manuales (tipo='interes'); los de tipo='liquidacion' son
+  // registros automaticos de ampliaciones previas y ya estan reflejados en el estado.
+  const totalPagadoIntereses = pagosIntereses
+    .filter((p) => p.tipo === 'interes')
+    .reduce((sum, p) => sum + parseMoney(p.monto || 0), 0);
+  const totalPagado = totalPagadoCuotas + totalPagadoIntereses;
 
   const handleCalcular = () => {
     const tasa = parseFloat(tasaLiquidacion);
@@ -462,11 +489,17 @@ export const DialogoLiquidacion = ({
       alert('Por favor ingrese valores válidos para la tasa y el plazo de liquidación');
       return;
     }
-    const { totalInteres } = calcularInteresSimple(montoOriginal, tasa, plazo);
+    const { totalInteres: totalInteresNuevo } = calcularInteresSimple(montoOriginal, tasa, plazo);
+    // "Interes de Liquidacion" mostrado = interes nuevo + intereses ya pagados (historico).
+    // Saldo a favor se calcula contra esa misma suma para que la aritmetica visible cuadre.
+    const totalInteres = totalInteresNuevo + totalPagadoIntereses;
     const saldoFavor = totalPagado - totalInteres;
     setDatosCalculados({
       totalInteres,
+      totalInteresNuevo,
       totalPagado,
+      totalPagadoCuotas,
+      totalPagadoIntereses,
       saldoFavor,
       tasaUtilizada: tasa,
       plazoUtilizado: plazo,
@@ -528,6 +561,18 @@ export const DialogoLiquidacion = ({
               <Grid item xs={6}><Typography variant="body2"><strong>Tasa Original:</strong> {tasaOriginal}%</Typography></Grid>
               <Grid item xs={6}><Typography variant="body2"><strong>Cuotas Totales:</strong> {numeroCuotasOriginal}</Typography></Grid>
               <Grid item xs={6}><Typography variant="body2"><strong>Cuotas Pagadas:</strong> {cuotasPagadas}</Typography></Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2">
+                  <strong>Abonado a Cuotas:</strong>{' '}
+                  <span style={{ color: '#2e7d32' }}>${formatMoney(totalPagadoCuotas)}</span>
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2">
+                  <strong>Intereses Pagados:</strong>{' '}
+                  <span style={{ color: '#ed6c02' }}>${formatMoney(totalPagadoIntereses)}</span>
+                </Typography>
+              </Grid>
               <Grid item xs={12}>
                 <Typography variant="body2">
                   <strong>Total Pagado:</strong>{' '}
@@ -590,6 +635,13 @@ export const DialogoLiquidacion = ({
                 <Grid item xs={12} md={4}>
                   <Typography variant="body2" color="text.secondary">Interés de Liquidación</Typography>
                   <Typography variant="h6" color="error.main">${formatMoney(datosCalculados.totalInteres)}</Typography>
+                  {datosCalculados.totalPagadoIntereses > 0 && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.3, mt: 0.5 }}>
+                      Nuevo: ${formatMoney(datosCalculados.totalInteresNuevo)}
+                      <br />
+                      + Ya pagado: ${formatMoney(datosCalculados.totalPagadoIntereses)}
+                    </Typography>
+                  )}
                 </Grid>
                 <Grid item xs={12} md={4}>
                   <Typography variant="body2" color="text.secondary">Total Pagado</Typography>
@@ -666,6 +718,7 @@ export const PrestamoConCronograma = () => {
         cuotasPagadas={cuotas.filter(c => c.estado_pago === 'pagado').length}
         totalAbonado={cuotas.reduce((sum, c) => sum + parseMoney(c.abonado || 0), 0)}
         cuotas={cuotas}
+        pagosIntereses={pagosIntereses}
       />
     </>
   );

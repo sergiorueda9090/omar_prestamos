@@ -1,5 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');
 
+/* SweetAlert2 debe quedar por delante de los Dialog de MUI (zIndex 1300). */
+.swal2-container { z-index: 10000 !important; }
+
 *{
     margin:0px;
     padding: 0px;
