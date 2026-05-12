@@ -490,14 +490,15 @@ export const DialogoLiquidacion = ({
       return;
     }
     const { totalInteres: totalInteresNuevo } = calcularInteresSimple(montoOriginal, tasa, plazo);
-    // "Interes de Liquidacion" mostrado = interes nuevo + intereses ya pagados (historico).
-    // Saldo a favor se calcula contra esa misma suma para que la aritmetica visible cuadre.
-    const totalInteres = totalInteresNuevo + totalPagadoIntereses;
-    const saldoFavor = totalPagado - totalInteres;
+    // En el resultado de la liquidacion mostramos solo el cargo nuevo y los abonos
+    // a cuotas: los intereses ya pagados son historicos y no deben inflar ninguna
+    // de las dos cifras. El saldo a favor es matematicamente identico al esquema
+    // anterior (abonos + int_pag) - (nuevo + int_pag) == abonos - nuevo.
+    const saldoFavor = totalPagadoCuotas - totalInteresNuevo;
     setDatosCalculados({
-      totalInteres,
+      totalInteres: totalInteresNuevo,
       totalInteresNuevo,
-      totalPagado,
+      totalPagado: totalPagadoCuotas,
       totalPagadoCuotas,
       totalPagadoIntereses,
       saldoFavor,
@@ -635,13 +636,6 @@ export const DialogoLiquidacion = ({
                 <Grid item xs={12} md={4}>
                   <Typography variant="body2" color="text.secondary">Interés de Liquidación</Typography>
                   <Typography variant="h6" color="error.main">${formatMoney(datosCalculados.totalInteres)}</Typography>
-                  {datosCalculados.totalPagadoIntereses > 0 && (
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.3, mt: 0.5 }}>
-                      Nuevo: ${formatMoney(datosCalculados.totalInteresNuevo)}
-                      <br />
-                      + Ya pagado: ${formatMoney(datosCalculados.totalPagadoIntereses)}
-                    </Typography>
-                  )}
                 </Grid>
                 <Grid item xs={12} md={4}>
                   <Typography variant="body2" color="text.secondary">Total Pagado</Typography>
@@ -1079,7 +1073,7 @@ function calcularDatosPrestamo(store) {
     cuotasPagas: isNaN(cuotasPagas) ? 0 : cuotasPagas,
     cuotasPendientes: isNaN(cuotasPendientes) ? 0 : cuotasPendientes,
     intereses: interesAcum,
-    utilidadReal1: calcularUtilidad1(montoOriginal, saldoTotalNum, interesAcum),
+    utilidadReal1: calcularUtilidad1(totalInteresNum, interesAcum),
     utilidadReal2: calcularUtilidad2(cuotasConPagos, montoOriginal, totalInteresNum, numCuotas, interesAcum),
     utilidadReal3: calcularUtilidad3(cuotasConPagos, montoOriginal, interesAcum),
   };

@@ -129,9 +129,15 @@ export const aplicarSaldoFavorACuotas = (cuotas, saldoFavor) => {
 
 /**
  * Calcula la Utilidad 1 - Ganancia total inmediata + intereses pagados
+ *
+ * Suma directa de intereses esperados del prestamo (campo total_interes_pagar)
+ * mas los intereses ya cobrados (interes_acumulado, que incluye pagos manuales
+ * de interes e interes de liquidacion). No se deriva de saldo_total_pagar porque
+ * ese campo puede tener restas (saldo a favor aplicado por ampliacion) que
+ * desviarian la utilidad real.
  */
-export const calcularUtilidad1 = (montoOriginal, totalAPagar, interesAcumulado = 0) => {
-  return (totalAPagar - montoOriginal) + interesAcumulado;
+export const calcularUtilidad1 = (totalInteres, interesAcumulado = 0) => {
+  return totalInteres + interesAcumulado;
 };
 
 /**
@@ -150,10 +156,14 @@ export const calcularUtilidad2 = (cuotasPagadas, montoOriginal, totalInteres, nu
  */
 export const calcularUtilidad3 = (cuotasPagadas, montoOriginal, interesAcumulado = 0) => {
   const totalPagado = cuotasPagadas.reduce((sum, c) => sum + c.abonado, 0);
-  if (totalPagado <= montoOriginal) {
-    return 0; // No hay utilidad hasta recuperar el capital invertido
+  // El capital invertido se considera recuperado cuando cuotas + intereses cobrados
+  // superan el monto original. Asi la utilidad arranca a subir en el mismo instante
+  // en que "Saldo A Inversion + Intereses" toca 0 (ambas formulas usan la misma base).
+  const totalRecuperado = totalPagado + interesAcumulado;
+  if (totalRecuperado <= montoOriginal) {
+    return 0;
   }
-  return (totalPagado - montoOriginal) + interesAcumulado;
+  return totalRecuperado - montoOriginal;
 };
 
 /**
