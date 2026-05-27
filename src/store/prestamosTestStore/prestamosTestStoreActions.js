@@ -867,6 +867,52 @@ export const actionMarcarPerdido = (clienteId) => {
 
 
 // =============================================================================
+// EDITAR INFO BASICA: cambiar SOLO estado y/o fecha del prestamo
+// =============================================================================
+// Endpoint: PUT /clientes/api/v2/<id>/editar-info/
+// cambios = { estado?, fecha_prestamo? } (envia solo lo que cambio)
+// Despues recarga el listado en la pagina/filtro actual.
+// =============================================================================
+
+export const actionEditarInfoCliente = (clienteId, cambios, page = 1, estado = '') => {
+  return async (dispatch, getState) => {
+    await dispatch(handleShowBackDrop());
+
+    const { authStore } = getState();
+
+    const options = {
+      method: 'PUT',
+      url: `${dominio}${path}${clienteId}/editar-info/`,
+      headers: {
+        Authorization: `Bearer ${authStore.token}`,
+        "Content-Type": "application/json",
+      },
+      data: cambios,
+    };
+
+    try {
+      const response = await axios.request(options);
+
+      if (response.status === 200) {
+        await dispatch(actionGetAllPrestamos(page, estado));
+        await dispatch(handleHideBackDrop());
+        await alertaActualizado("Información actualizada");
+        return true;
+      }
+    } catch (error) {
+      console.error("Error al editar información del cliente:", error);
+      const msg = error.response?.data?.error || "Error al actualizar la información";
+      await dispatch(handleHideBackDrop());
+      await alertaError(msg);
+      return false;
+    }
+    await dispatch(handleHideBackDrop());
+    return false;
+  };
+};
+
+
+// =============================================================================
 // DESCARGAR REPORTE EXCEL
 // =============================================================================
 // Endpoint: GET /clientes/api/v2/exportar/

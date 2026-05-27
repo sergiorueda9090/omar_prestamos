@@ -229,11 +229,16 @@ body.dark .css-lohd6h-MuiSvgIcon-root-MuiSelect-icon{color:rgba(255,255,255,0.8)
 .table .thead-dark th{background-color: #1866ee !important; border-color: rgba(255,255,255,0.1) !important; 
 font-size: 13px !important; color:#fff;}
 .table tbody td{font-size: 13px !important; color:#403e57; font-weight: 500;}
-.table tbody .actions button{min-width: 32px !important; width: 32px !important; height: 32px !important; margin:0px 3px !important}
+.table tbody .actions{flex-wrap: nowrap !important;}
+.table tbody .actions button{min-width: 32px !important; width: 32px !important; height: 32px !important; flex: 0 0 auto !important; padding: 0 !important; margin: 0 !important; border-radius: 6px !important;}
+.table tbody .actions button.edit{color:#0d9488 !important; background: rgba(13,148,136,0.16) !important;}
+.table tbody .actions button.primary{color:#3a5ad9 !important; background: rgba(58,90,217,0.16) !important;}
 .table tbody .actions button.secondary{background: rgba(203,60,231,0.2) !important;}
 .table tbody .actions button.success{background: rgba(26,159,83,0.2) !important;}
+.table tbody .actions button.info{background: rgba(24,102,238,0.2) !important;}
+.table tbody .actions button.warning{background: rgba(255,152,0,0.2) !important;}
 .table tbody .actions button.error{background: rgba(241,17,51,0.2) !important;}
-.table tbody .actions button svg{font-size: 32px !important;}
+.table tbody .actions button svg{font-size: 18px !important;}
 table.v-align td{vertical-align: middle !important;}
 .table td .old, .table td .new{display: block; width: 100%;}
 table td .imgWrapper{width: 20%; flex:0 0 20%;}

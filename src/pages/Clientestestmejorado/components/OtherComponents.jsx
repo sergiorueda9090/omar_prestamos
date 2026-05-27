@@ -190,14 +190,16 @@ export const LoanInstallmentsManager = ({ cuotas, pagosIntereses = [] }) => {
     }
   };
 
-  const headers = ['N°', 'Fecha', 'Valor', 'Abonado', 'Saldo', 'Estado', 'Acciones'];
+  const headers = ['N°', 'Fecha', 'Valor', 'Abonado', 'Saldo', 'Estado', 'Descripción', 'Acciones'];
+  // Plantilla compartida por encabezado y filas (la columna Descripción es mas ancha).
+  const gridTemplate = '0.6fr 1.1fr 1fr 1fr 1fr 1fr 1.6fr 0.9fr';
 
   return (
     <Box>
       <Typography variant="h6" gutterBottom sx={{ mt: 3, mb: 2 }}>Cronograma de Cuotas</Typography>
 
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', backgroundColor: 'primary.main', color: 'white' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: gridTemplate, backgroundColor: 'primary.main', color: 'white' }}>
           {headers.map((header, idx) => (
             <Box key={idx} sx={{ p: 1.5, textAlign: 'center', borderRight: idx < headers.length - 1 ? '1px solid rgba(255,255,255,0.2)' : 'none' }}>
               <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '13px' }}>{header}</Typography>
@@ -206,7 +208,7 @@ export const LoanInstallmentsManager = ({ cuotas, pagosIntereses = [] }) => {
         </Box>
 
         {cuotas.map((cuota, index) => (
-          <Box key={cuota.id || index} sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', backgroundColor: getRowBackground(cuota.estado_pago), borderBottom: index < cuotas.length - 1 ? '1px solid #dee2e6' : 'none', '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }}>
+          <Box key={cuota.id || index} sx={{ display: 'grid', gridTemplateColumns: gridTemplate, backgroundColor: getRowBackground(cuota.estado_pago), borderBottom: index < cuotas.length - 1 ? '1px solid #dee2e6' : 'none', '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }}>
             <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
               <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{cuota.numero}</Typography>
             </Box>
@@ -233,6 +235,17 @@ export const LoanInstallmentsManager = ({ cuotas, pagosIntereses = [] }) => {
             </Box>
             <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
               {getEstadoChip(cuota.estado_pago)}
+            </Box>
+            <Box sx={{ p: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+              {cuota.descripcion ? (
+                <Tooltip title={cuota.descripcion}>
+                  <Typography variant="body2" sx={{ fontSize: '12px', whiteSpace: 'normal', wordBreak: 'break-word', textAlign: 'left', width: '100%' }}>
+                    {cuota.descripcion}
+                  </Typography>
+                </Tooltip>
+              ) : (
+                <Typography variant="body2" sx={{ color: 'text.disabled' }}>—</Typography>
+              )}
             </Box>
             <Box sx={{ p: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
               {parseFloat(cuota.abonado) > 0 && (

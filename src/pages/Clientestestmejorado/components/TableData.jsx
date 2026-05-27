@@ -1,28 +1,53 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from "@mui/material";
-import { FaEye } from "react-icons/fa";
+import { FaInfoCircle, FaUserEdit } from "react-icons/fa";
 import { FaRegAddressCard } from "react-icons/fa6";
-import { MdDelete } from "react-icons/md";
-import { FaChalkboardUser } from "react-icons/fa6";
+import { MdReceiptLong } from "react-icons/md";
 import Pagination from '@mui/material/Pagination';
 import Tooltip from '@mui/material/Tooltip';
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { MdBlockFlipped } from "react-icons/md";
+import DialogoInfoCliente from './dialogs/DialogoInfoCliente';
+import DialogoDetalleCuotas from './dialogs/DialogoDetalleCuotas';
+import DialogoEditarCliente from './dialogs/DialogoEditarCliente';
 import {
   actionGetAllPrestamos,
-  actionObtenerPrestamo,
-  actionEliminarPrestamo,
   actionMarcarPerdido,
+  actionEditarInfoCliente,
 } from '../../../store/prestamosTestStore/prestamosTestStoreActions';
-import { setTab } from '../../../store/prestamosTestStore/prestamosTestStore';
-import { confirmarEliminacion } from '../../../components/Alerts/AlertasCrud';
 import Swal from "sweetalert2";
 
 const TableData = ({ estadoFiltro = '' }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { prestamosArray, count, totalPages, currentPage } = useSelector(state => state.prestamosTestStore);
+
+  // Modales de vista rapida (info del cliente / detalle de cuotas / editar)
+  const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
+  const [openInfo, setOpenInfo] = useState(false);
+  const [openCuotas, setOpenCuotas] = useState(false);
+  const [openEditar, setOpenEditar] = useState(false);
+
+  const handleVerInfoCliente = (cliente) => {
+    setClienteSeleccionado(cliente);
+    setOpenInfo(true);
+  };
+
+  const handleVerDetalleCuotas = (cliente) => {
+    setClienteSeleccionado(cliente);
+    setOpenCuotas(true);
+  };
+
+  const handleVerEditarCliente = (cliente) => {
+    setClienteSeleccionado(cliente);
+    setOpenEditar(true);
+  };
+
+  // Guarda los cambios (estado / fecha) y recarga el listado en la pagina y filtro actuales.
+  const handleGuardarEdicion = (cambios) => {
+    return dispatch(actionEditarInfoCliente(clienteSeleccionado.id, cambios, currentPage, estadoFiltro));
+  };
 
   useEffect(() => {
     dispatch(actionGetAllPrestamos(currentPage, estadoFiltro));
@@ -33,29 +58,9 @@ const TableData = ({ estadoFiltro = '' }) => {
     dispatch(actionGetAllPrestamos(newPage, estadoFiltro));
   };
 
-  // Ver detalle (carga el prestamo en Redux y cambia al tab de gestion)
-  const handleVerDetalle = (clienteId) => {
-    dispatch(actionObtenerPrestamo(clienteId));
-    dispatch(setTab(1));
-  };
-
   // Ver tarjeta (navegar a la ruta con ID)
   const handleVerTarjeta = (clienteId) => {
     navigate(`/clientes/${clienteId}`);
-  };
-
-  // Ver info rapida (carga y va al tab de historial)
-  const handleVerInfo = (clienteId) => {
-    dispatch(actionObtenerPrestamo(clienteId));
-    dispatch(setTab(2));
-  };
-
-  // Eliminar prestamo
-  const handleDelete = async (clienteId) => {
-    const confirmado = await confirmarEliminacion();
-    if (confirmado) {
-      dispatch(actionEliminarPrestamo(clienteId));
-    }
   };
 
   // Formatear moneda colombiana
@@ -105,7 +110,7 @@ const TableData = ({ estadoFiltro = '' }) => {
             <th># Cuotas</th>
             <th>Valor Cuota</th>
             <th>Saldo Total</th>
-            <th style={{ minWidth: '260px' }}>Acciones</th>
+            <th style={{ minWidth: '240px' }}>Acciones</th>
           </tr>
         </thead>
 
@@ -128,17 +133,10 @@ const TableData = ({ estadoFiltro = '' }) => {
                 <td>
                   <div className="actions d-flex align-items-center gap-2" style={{ flexWrap: 'nowrap' }}>
 
-                    {/* Ver Info (historial) */}
-                    <Tooltip title="Ver Detalles">
-                      <Button className="success" color="success" onClick={() => handleVerInfo(cliente.id)}>
-                        <FaChalkboardUser />
-                      </Button>
-                    </Tooltip>
-
-                    {/* Ver Detalle (gestion de cuotas) */}
-                    <Tooltip title="Ver Gestión">
-                      <Button className="secondary" color="secondary" onClick={() => handleVerDetalle(cliente.id)}>
-                        <FaEye />
+                    {/* Ver toda la info del cliente + editar estado/fecha (modal) */}
+                    <Tooltip title="Ver / Editar Cliente">
+                      <Button className="edit" color="inherit" onClick={() => handleVerEditarCliente(cliente)}>
+                        <FaUserEdit />
                       </Button>
                     </Tooltip>
 
@@ -149,21 +147,31 @@ const TableData = ({ estadoFiltro = '' }) => {
                       </Button>
                     </Tooltip>
 
-                    {/* Marcar como perdido (solo si está vigente) */}
-                    {cliente.estado === 'vigente' && (
+                    {/* Información del cliente (modal) */}
+                    <Tooltip title="Información del Cliente">
+                      <Button className="primary" color="primary" onClick={() => handleVerInfoCliente(cliente)}>
+                        <FaInfoCircle />
+                      </Button>
+                    </Tooltip>
+
+                    {/* Detalle de cuotas (modal) */}
+                    <Tooltip title="Detalle de Cuotas">
+                      <Button className="primary" color="primary" onClick={() => handleVerDetalleCuotas(cliente)}>
+                        <MdReceiptLong />
+                      </Button>
+                    </Tooltip>
+
+                    {/* Marcar como perdido (solo si está vigente). Si no aplica,
+                        se reserva el espacio para mantener alineadas las columnas. */}
+                    {cliente.estado === 'vigente' ? (
                       <Tooltip title="Marcar como Perdido">
                         <Button className="warning" color="warning" onClick={() => handleMarcarPerdido(cliente.id)}>
                           <MdBlockFlipped />
                         </Button>
                       </Tooltip>
+                    ) : (
+                      <span style={{ width: 32, flex: '0 0 auto', display: 'inline-block' }} aria-hidden="true" />
                     )}
-
-                    {/* Eliminar */}
-                    <Tooltip title="Eliminar Cliente">
-                      <Button className="error" color="error" onClick={() => handleDelete(cliente.id)}>
-                        <MdDelete />
-                      </Button>
-                    </Tooltip>
 
                   </div>
                 </td>
@@ -192,6 +200,24 @@ const TableData = ({ estadoFiltro = '' }) => {
           onChange={handlePageChange}
         />
       </div>
+
+      {/* Modales de vista rapida */}
+      <DialogoInfoCliente
+        open={openInfo}
+        onClose={() => setOpenInfo(false)}
+        cliente={clienteSeleccionado}
+      />
+      <DialogoDetalleCuotas
+        open={openCuotas}
+        onClose={() => setOpenCuotas(false)}
+        cliente={clienteSeleccionado}
+      />
+      <DialogoEditarCliente
+        open={openEditar}
+        onClose={() => setOpenEditar(false)}
+        cliente={clienteSeleccionado}
+        onGuardar={handleGuardarEdicion}
+      />
     </div>
   );
 };
