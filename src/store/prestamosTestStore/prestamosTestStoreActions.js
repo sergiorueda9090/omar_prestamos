@@ -256,7 +256,7 @@ export const actionObtenerPrestamo = (clienteId) => {
 // El backend distribuye el monto entre cuotas pendientes automaticamente.
 // =============================================================================
 
-export const actionPagarCuota = (monto, fechaPago, descripcion = '') => {
+export const actionPagarCuota = (monto, fechaPago, descripcion = '', fechaProximoPago = '', fechaPagoReal = '') => {
   return async (dispatch, getState) => {
     await dispatch(handleShowBackDrop());
 
@@ -265,6 +265,8 @@ export const actionPagarCuota = (monto, fechaPago, descripcion = '') => {
 
     const data = { monto: String(monto).replace(/\./g, ''), fecha_pago: fechaPago };
     if (descripcion) data.descripcion = descripcion;
+    if (fechaProximoPago) data.fecha_proximo_pago = fechaProximoPago;
+    if (fechaPagoReal) data.fecha_pago_real = fechaPagoReal;
 
     const options = {
       method: 'POST',

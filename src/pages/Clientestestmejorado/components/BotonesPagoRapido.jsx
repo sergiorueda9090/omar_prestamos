@@ -24,6 +24,7 @@ import {
   actionPagarInteres,
   actionPagarSaldoTotal,
   actionRevertirPagoSaldoTotal,
+  actionCambiarFechaCuota,
 } from '../../../store/prestamosTestStore/prestamosTestStoreActions';
 
 
@@ -109,9 +110,31 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
   const cuotasPendientes = cuotas.filter(c => c.estado_pago !== 'pagado');
   const saldoTotalPendiente = cuotasPendientes.reduce((sum, c) => sum + parseMoney(c.saldo || c.valor), 0);
 
+  // Cuota en la que sigue debiendo (la pendiente mas antigua). Su fecha_pago
+  // es el vencimiento esperado que se usa para calcular la mora.
+  const proximaCuotaPendiente = cuotasPendientes[0];
+  const fechaVencimientoDefault = proximaCuotaPendiente?.fecha_pago || '';
+
   useEffect(() => {
-    if (open) { setMontoPago(''); setDistribucion([]); setFechaPago(dayjs().format('YYYY-MM-DD')); setFechaProximoPago(''); setFechaPagoReal(dayjs().format('YYYY-MM-DD')); setDescripcion(''); }
-  }, [open]);
+    if (open) {
+      setMontoPago('');
+      setDistribucion([]);
+      setFechaPago(dayjs().format('YYYY-MM-DD'));
+      // Por defecto: proximo pago = vencimiento de la cuota en mora; pago real = hoy.
+      setFechaProximoPago(fechaVencimientoDefault);
+      setFechaPagoReal(dayjs().format('YYYY-MM-DD'));
+      setDescripcion('');
+    }
+  }, [open, fechaVencimientoDefault]);
+
+  // Mora de ESTE pago: dias entre el vencimiento esperado y la fecha real de pago.
+  const diasMora = (fechaProximoPago && fechaPagoReal)
+    ? Math.max(0, dayjs(fechaPagoReal).diff(dayjs(fechaProximoPago), 'day'))
+    : 0;
+  // Mora acumulada a hoy en esa cuota (cuantos dias lleva de mora si aun no se paga).
+  const diasMoraAcumulada = fechaProximoPago
+    ? Math.max(0, dayjs().diff(dayjs(fechaProximoPago), 'day'))
+    : 0;
 
   const calcularDistribucion = (monto) => {
     const montoNum = typeof monto === 'number' ? monto : parseMoney(monto);
@@ -142,7 +165,7 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
   const handleConfirmar = () => {
     const monto = parseMoney(montoPago);
     if (!monto || monto <= 0) { alert('El monto debe ser mayor a 0'); return; }
-    dispatch(actionPagarCuota(monto, fechaPago, descripcion));
+    dispatch(actionPagarCuota(monto, fechaPago, descripcion, fechaProximoPago, fechaPagoReal));
     onClose();
   };
 
@@ -218,6 +241,30 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
                 sx={sxInput()}
               />
             </Grid>
+
+            {/* Indicador de mora calculado entre Fecha Próximo Pago y Fecha Pago Real */}
+            <Grid item xs={12}>
+              <Alert
+                severity={diasMora > 0 ? 'error' : 'success'}
+                icon={<ScheduleIcon />}
+                sx={{ borderRadius: 2, alignItems: 'center' }}
+              >
+                {diasMora > 0 ? (
+                  <>
+                    <strong>{diasMora} día{diasMora === 1 ? '' : 's'} de mora</strong> en este pago
+                    {' '}(venció el {dayjs(fechaProximoPago).format('DD/MM/YYYY')}, pagó el {dayjs(fechaPagoReal).format('DD/MM/YYYY')}).
+                  </>
+                ) : (
+                  <>Pago <strong>al día</strong> (sin mora respecto al vencimiento {fechaProximoPago ? `del ${dayjs(fechaProximoPago).format('DD/MM/YYYY')}` : ''}).</>
+                )}
+                {diasMoraAcumulada > 0 && (
+                  <Box component="span" sx={{ display: 'block', fontSize: '0.8rem', mt: 0.5, opacity: 0.9 }}>
+                    Esta cuota lleva <strong>{diasMoraAcumulada} día{diasMoraAcumulada === 1 ? '' : 's'}</strong> de mora a hoy.
+                  </Box>
+                )}
+              </Alert>
+            </Grid>
+
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth multiline rows={3} label="Descripción (opcional)" value={descripcion}
@@ -580,6 +627,148 @@ const DialogoPagarSaldoTotal = ({ open, onClose }) => {
 
 
 // ============================================================================
+// DIALOGO: GESTION DE PROXIMO PAGO Y MORA
+// ============================================================================
+
+const DialogoGestionProximoPago = ({ open, onClose }) => {
+  const dispatch = useDispatch();
+  const { cuotas } = useSelector(state => state.prestamosTestStore);
+
+  // Cuota en la que sigue debiendo (la pendiente mas antigua).
+  const cuotasPendientes = cuotas.filter(c => c.estado_pago !== 'pagado');
+  const proximaCuota = cuotasPendientes[0];
+  const fechaVencimientoOriginal = proximaCuota ? dayjs(proximaCuota.fecha_pago).format('YYYY-MM-DD') : '';
+
+  const [fechaProximoPago, setFechaProximoPago] = useState('');
+  const [fechaPagoReal, setFechaPagoReal] = useState(dayjs().format('YYYY-MM-DD'));
+
+  useEffect(() => {
+    if (open) {
+      setFechaProximoPago(fechaVencimientoOriginal);
+      setFechaPagoReal(dayjs().format('YYYY-MM-DD'));
+    }
+  }, [open, fechaVencimientoOriginal]);
+
+  // Mora respecto a la fecha real de pago y mora acumulada a hoy.
+  const diasMora = (fechaProximoPago && fechaPagoReal)
+    ? Math.max(0, dayjs(fechaPagoReal).diff(dayjs(fechaProximoPago), 'day'))
+    : 0;
+  const diasMoraHoy = fechaProximoPago
+    ? Math.max(0, dayjs().diff(dayjs(fechaProximoPago), 'day'))
+    : 0;
+
+  const fechaCambiada = !!proximaCuota && !!fechaProximoPago && fechaProximoPago !== fechaVencimientoOriginal;
+
+  const handleGuardar = () => {
+    if (proximaCuota && fechaCambiada) {
+      dispatch(actionCambiarFechaCuota(proximaCuota.id, fechaProximoPago));
+    }
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogHeader
+        icon={<CalendarIcon sx={{ color: 'white', fontSize: 22 }} />}
+        iconBg="info.main" bgColor="#e3f2fd" borderColor="#42a5f5"
+        title="Próximo Pago y Mora"
+        subtitle="Consulta y ajusta la fecha del próximo pago"
+        onClose={onClose}
+      />
+
+      <DialogContent dividers sx={{ p: 3 }}>
+        <BannerInfoCliente />
+
+        {!proximaCuota ? (
+          <Alert severity="success" sx={{ borderRadius: 2 }}>
+            No hay cuotas pendientes. El préstamo está al día.
+          </Alert>
+        ) : (
+          <>
+            {/* Resumen de la proxima cuota pendiente */}
+            <Grid container spacing={1.5} sx={{ mb: 3 }}>
+              <Grid item xs={6} sm={4}>
+                <StatCard label="Próxima Cuota" value={`#${proximaCuota.numero}`} bgColor="#e3f2fd" borderColor="#bbdefb" textColor="#1565c0" />
+              </Grid>
+              <Grid item xs={6} sm={4}>
+                <StatCard label="Saldo Cuota" value={`$${formatMoney(proximaCuota.saldo || proximaCuota.valor)}`} bgColor="#fce4ec" borderColor="#f8bbd0" textColor="#c62828" />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <StatCard label="Vencimiento Original" value={dayjs(fechaVencimientoOriginal).format('DD/MM/YYYY')} bgColor="#fff3e0" borderColor="#ffe0b2" textColor="#e65100" />
+              </Grid>
+            </Grid>
+
+            {/* Fechas editables */}
+            <Paper variant="outlined" sx={{ p: 2.5, mb: 3, borderRadius: 2 }}>
+              <SectionLabel>Fechas</SectionLabel>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth type="date" label="Fecha Próximo Pago" value={fechaProximoPago}
+                    onChange={(e) => setFechaProximoPago(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                    helperText="Editable: cambia el vencimiento de esta cuota"
+                    sx={sxInput('info.main')}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth type="date" label="Fecha Pago Real" value={fechaPagoReal}
+                    onChange={(e) => setFechaPagoReal(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                    helperText="Para calcular los días de mora"
+                    sx={sxInput()}
+                  />
+                </Grid>
+              </Grid>
+            </Paper>
+
+            {/* Indicador de mora */}
+            <Alert
+              severity={diasMora > 0 ? 'error' : 'success'}
+              icon={<ScheduleIcon />}
+              sx={{ borderRadius: 2, alignItems: 'center' }}
+            >
+              {diasMora > 0 ? (
+                <>
+                  <strong>{diasMora} día{diasMora === 1 ? '' : 's'} de mora</strong>
+                  {' '}(venció el {dayjs(fechaProximoPago).format('DD/MM/YYYY')}, pago real el {dayjs(fechaPagoReal).format('DD/MM/YYYY')}).
+                </>
+              ) : (
+                <>Sin mora respecto a la fecha de pago real.</>
+              )}
+              {diasMoraHoy > 0 && (
+                <Box component="span" sx={{ display: 'block', fontSize: '0.8rem', mt: 0.5, opacity: 0.9 }}>
+                  Esta cuota lleva <strong>{diasMoraHoy} día{diasMoraHoy === 1 ? '' : 's'}</strong> de mora a hoy.
+                </Box>
+              )}
+            </Alert>
+
+            {fechaCambiada && (
+              <Alert severity="info" sx={{ borderRadius: 2, mt: 2 }}>
+                Vas a cambiar el vencimiento de la cuota #{proximaCuota.numero} del
+                {' '}<strong>{dayjs(fechaVencimientoOriginal).format('DD/MM/YYYY')}</strong> al
+                {' '}<strong>{dayjs(fechaProximoPago).format('DD/MM/YYYY')}</strong>.
+              </Alert>
+            )}
+          </>
+        )}
+      </DialogContent>
+
+      <DialogActions sx={{ px: 3, py: 2, backgroundColor: '#fafafa', borderTop: '1px solid #e0e0e0', gap: 1 }}>
+        <Button onClick={onClose} variant="outlined" color="inherit" sx={{ borderRadius: 2, px: 3 }}>Cerrar</Button>
+        <Button onClick={handleGuardar} variant="contained" color="info" disabled={!fechaCambiada} startIcon={<CalendarIcon />} sx={{ borderRadius: 2, px: 3, fontWeight: 700 }}>
+          Guardar Fecha
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+
+// ============================================================================
 // COMPONENTE PRINCIPAL: BOTONES DE PAGO RAPIDO
 // ============================================================================
 
@@ -589,9 +778,14 @@ const BotonesPagoRapido = () => {
   const [dialogoCuotaAbierto, setDialogoCuotaAbierto] = useState(false);
   const [dialogoInteresAbierto, setDialogoInteresAbierto] = useState(false);
   const [dialogoSaldoTotalAbierto, setDialogoSaldoTotalAbierto] = useState(false);
+  const [dialogoProximoPagoAbierto, setDialogoProximoPagoAbierto] = useState(false);
 
   const cuotasPendientes = cuotas.filter(c => c.estado_pago !== 'pagado');
   const saldoTotalPendiente = cuotasPendientes.reduce((sum, c) => sum + parseMoney(c.saldo !== undefined ? c.saldo : c.valor), 0);
+
+  // Fecha del proximo pago = vencimiento de la cuota pendiente mas antigua (informativa).
+  const proximaCuota = cuotasPendientes[0];
+  const fechaProximoPago = proximaCuota ? dayjs(proximaCuota.fecha_pago).format('DD/MM/YYYY') : null;
 
   // Pago de saldo total mas reciente con snapshot (revertible)
   const pagoSaldoTotalRevertible = (pagos || [])
@@ -638,24 +832,42 @@ const BotonesPagoRapido = () => {
   return (
     <>
       <Paper elevation={3} sx={{ p: 3, mb: 3, backgroundColor: 'rgba(25, 118, 210, 0.05)' }}>
-        <Typography variant="h6" gutterBottom color="primary" sx={{ mb: 2 }}>Opciones de Pago Rápido</Typography>
+        <Typography variant="h6" gutterBottom color="primary" sx={{ mb: 1 }}>Opciones de Pago Rápido</Typography>
+
+        {/* Fecha del proximo pago (informativa) */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <ScheduleIcon fontSize="small" sx={{ color: 'info.main' }} />
+          <Typography variant="body2" color="text.secondary">
+            Próximo pago:{' '}
+            <strong style={{ color: fechaProximoPago ? '#0288d1' : '#2e7d32' }}>
+              {fechaProximoPago || 'Préstamo al día'}
+            </strong>
+          </Typography>
+        </Box>
+
         <Grid container spacing={2}>
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} sm={6} md={3}>
             <Button fullWidth variant="contained" color="success" size="large" onClick={() => setDialogoCuotaAbierto(true)} startIcon={<PaymentIcon />} disabled={cuotasPendientes.length === 0} sx={{ py: 2, flexDirection: 'column', '& .MuiButton-startIcon': { mb: 1, mr: 0 } }}>
               <Typography variant="button" sx={{ fontWeight: 'bold' }}>Pagar Cuota</Typography>
               <Typography variant="caption" sx={{ opacity: 0.9 }}>Valor cuota: ${formatMoney(parseMoney(valorCuota))}</Typography>
             </Button>
           </Grid>
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} sm={6} md={3}>
             <Button fullWidth variant="contained" color="warning" size="large" onClick={() => setDialogoInteresAbierto(true)} startIcon={<InterestIcon />} sx={{ py: 2, flexDirection: 'column', '& .MuiButton-startIcon': { mb: 1, mr: 0 } }}>
               <Typography variant="button" sx={{ fontWeight: 'bold' }}>Pagar Interés</Typography>
               <Typography variant="caption" sx={{ opacity: 0.9 }}>Suma a utilidades</Typography>
             </Button>
           </Grid>
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} sm={6} md={3}>
             <Button fullWidth variant="contained" color="error" size="large" onClick={() => setDialogoSaldoTotalAbierto(true)} startIcon={<WalletIcon />} disabled={saldoTotalPendiente <= 0} sx={{ py: 2, flexDirection: 'column', '& .MuiButton-startIcon': { mb: 1, mr: 0 } }}>
               <Typography variant="button" sx={{ fontWeight: 'bold' }}>Pagar Saldo Total</Typography>
               <Typography variant="caption" sx={{ opacity: 0.9 }}>${formatMoney(saldoTotalPendiente)}</Typography>
+            </Button>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Button fullWidth variant="contained" color="info" size="large" onClick={() => setDialogoProximoPagoAbierto(true)} startIcon={<ScheduleIcon />} disabled={cuotasPendientes.length === 0} sx={{ py: 2, flexDirection: 'column', '& .MuiButton-startIcon': { mb: 1, mr: 0 } }}>
+              <Typography variant="button" sx={{ fontWeight: 'bold' }}>Próximo Pago / Mora</Typography>
+              <Typography variant="caption" sx={{ opacity: 0.9 }}>Ver y ajustar fechas</Typography>
             </Button>
           </Grid>
         </Grid>
@@ -686,6 +898,7 @@ const BotonesPagoRapido = () => {
       <DialogoPagoCuotaPersonalizado open={dialogoCuotaAbierto} onClose={() => setDialogoCuotaAbierto(false)} />
       <DialogoPagoInteresPersonalizado open={dialogoInteresAbierto} onClose={() => setDialogoInteresAbierto(false)} />
       <DialogoPagarSaldoTotal open={dialogoSaldoTotalAbierto} onClose={() => setDialogoSaldoTotalAbierto(false)} />
+      <DialogoGestionProximoPago open={dialogoProximoPagoAbierto} onClose={() => setDialogoProximoPagoAbierto(false)} />
     </>
   );
 };

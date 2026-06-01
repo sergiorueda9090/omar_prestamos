@@ -172,6 +172,12 @@ export const LoanInstallmentsManager = ({ cuotas, pagosIntereses = [] }) => {
     (p) => p.tipo_pago === 'saldo_total' && p.tiene_snapshot,
   );
 
+  // Pagos de cuota ordenados por fecha real (historial de mora).
+  const pagosCuota = pagos
+    .filter((p) => p.tipo_pago === 'cuota')
+    .slice()
+    .sort((a, b) => new Date(a.fecha_pago_real || a.fecha) - new Date(b.fecha_pago_real || b.fecha));
+
   const getEstadoChip = (estado) => {
     const configs = {
       pagado: { label: 'Pagado', color: 'success', icon: <CheckCircleIcon /> },
@@ -190,9 +196,33 @@ export const LoanInstallmentsManager = ({ cuotas, pagosIntereses = [] }) => {
     }
   };
 
-  const headers = ['N°', 'Fecha', 'Valor', 'Abonado', 'Saldo', 'Estado', 'Descripción', 'Acciones'];
+  // Mora historica registrada por vencimiento: cada pago guarda el vencimiento
+  // de la cuota en la que se debia (fecha_proximo_pago) y sus dias de mora.
+  const moraRegistradaPorVencimiento = {};
+  pagosCuota.forEach((p) => {
+    if (p.fecha_proximo_pago) {
+      const k = dayjs(p.fecha_proximo_pago).format('YYYY-MM-DD');
+      moraRegistradaPorVencimiento[k] = Math.max(moraRegistradaPorVencimiento[k] || 0, p.dias_mora || 0);
+    }
+  });
+
+  // Dias de mora de una cuota:
+  // - Si hay un pago registrado para su vencimiento, usa la mora historica.
+  // - Si sigue pendiente/parcial y ya vencio, calcula la mora acumulada a hoy.
+  const getMoraCuota = (cuota) => {
+    const venc = cuota.fecha_pago ? dayjs(cuota.fecha_pago).format('YYYY-MM-DD') : null;
+    if (venc && moraRegistradaPorVencimiento[venc] !== undefined) {
+      return { dias: moraRegistradaPorVencimiento[venc], enCurso: false };
+    }
+    if (venc && cuota.estado_pago !== 'pagado') {
+      return { dias: Math.max(0, dayjs().diff(dayjs(venc), 'day')), enCurso: true };
+    }
+    return { dias: 0, enCurso: false };
+  };
+
+  const headers = ['N°', 'Fecha', 'Valor', 'Abonado', 'Saldo', 'Estado', 'Mora', 'Descripción', 'Acciones'];
   // Plantilla compartida por encabezado y filas (la columna Descripción es mas ancha).
-  const gridTemplate = '0.6fr 1.1fr 1fr 1fr 1fr 1fr 1.6fr 0.9fr';
+  const gridTemplate = '0.6fr 1.1fr 1fr 1fr 1fr 1fr 0.9fr 1.6fr 0.9fr';
 
   return (
     <Box>
@@ -207,7 +237,9 @@ export const LoanInstallmentsManager = ({ cuotas, pagosIntereses = [] }) => {
           ))}
         </Box>
 
-        {cuotas.map((cuota, index) => (
+        {cuotas.map((cuota, index) => {
+          const mora = getMoraCuota(cuota);
+          return (
           <Box key={cuota.id || index} sx={{ display: 'grid', gridTemplateColumns: gridTemplate, backgroundColor: getRowBackground(cuota.estado_pago), borderBottom: index < cuotas.length - 1 ? '1px solid #dee2e6' : 'none', '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }}>
             <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
               <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{cuota.numero}</Typography>
@@ -235,6 +267,21 @@ export const LoanInstallmentsManager = ({ cuotas, pagosIntereses = [] }) => {
             </Box>
             <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
               {getEstadoChip(cuota.estado_pago)}
+            </Box>
+            <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+              {mora.dias > 0 ? (
+                <Tooltip title={mora.enCurso ? 'Mora acumulada a hoy (cuota aún sin pagar)' : 'Días de mora registrados al pagar esta cuota'}>
+                  <Chip
+                    label={`${mora.dias} día${mora.dias === 1 ? '' : 's'}`}
+                    color={mora.enCurso ? 'warning' : 'error'}
+                    size="small"
+                    variant={mora.enCurso ? 'outlined' : 'filled'}
+                    sx={{ fontWeight: 'bold' }}
+                  />
+                </Tooltip>
+              ) : (
+                <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 'bold' }}>0</Typography>
+              )}
             </Box>
             <Box sx={{ p: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
               {cuota.descripcion ? (
@@ -265,7 +312,8 @@ export const LoanInstallmentsManager = ({ cuotas, pagosIntereses = [] }) => {
               )}
             </Box>
           </Box>
-        ))}
+          );
+        })}
       </Paper>
 
       {/* Pagos de Intereses */}
@@ -305,6 +353,54 @@ export const LoanInstallmentsManager = ({ cuotas, pagosIntereses = [] }) => {
                 </Box>
               </Box>
             ))}
+          </Paper>
+        </Box>
+      )}
+
+      {/* Historial de Mora por Pago de Cuota */}
+      {pagosCuota.length > 0 && (
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="h6" gutterBottom sx={{ color: 'error.main' }}>
+            <ScheduleIcon sx={{ verticalAlign: 'middle', mr: 1 }} />Historial de Mora
+          </Typography>
+          <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: '0.6fr 1fr 1fr 1fr 0.9fr 1.5fr', backgroundColor: 'error.main', color: 'white' }}>
+              {['N°', 'Vencimiento', 'Pago Real', 'Monto', 'Días Mora', 'Descripción'].map((header, idx) => (
+                <Box key={idx} sx={{ p: 1.5, textAlign: 'center', borderRight: idx < 5 ? '1px solid rgba(255,255,255,0.2)' : 'none' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '13px' }}>{header}</Typography>
+                </Box>
+              ))}
+            </Box>
+            {pagosCuota.map((pago, index) => {
+              const mora = pago.dias_mora || 0;
+              return (
+                <Box key={pago.id} sx={{ display: 'grid', gridTemplateColumns: '0.6fr 1fr 1fr 1fr 0.9fr 1.5fr', backgroundColor: mora > 0 ? 'rgba(244, 67, 54, 0.08)' : 'rgba(76, 175, 80, 0.08)', borderBottom: index < pagosCuota.length - 1 ? '1px solid #dee2e6' : 'none' }}>
+                  <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{index + 1}</Typography>
+                  </Box>
+                  <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+                    <Typography variant="body2">{pago.fecha_proximo_pago ? dayjs(pago.fecha_proximo_pago).format('DD/MM/YYYY') : '—'}</Typography>
+                  </Box>
+                  <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+                    <Typography variant="body2">{dayjs(pago.fecha_pago_real || pago.fecha).format('DD/MM/YYYY')}</Typography>
+                  </Box>
+                  <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>${formatMoney(pago.monto)}</Typography>
+                  </Box>
+                  <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+                    <Chip
+                      label={mora > 0 ? `${mora} día${mora === 1 ? '' : 's'}` : 'Al día'}
+                      color={mora > 0 ? 'error' : 'success'}
+                      size="small"
+                      sx={{ fontWeight: 'bold' }}
+                    />
+                  </Box>
+                  <Box sx={{ p: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: 'none' }}>
+                    <Typography variant="body2" sx={{ fontSize: '12px', textAlign: 'left', width: '100%' }}>{pago.descripcion || '—'}</Typography>
+                  </Box>
+                </Box>
+              );
+            })}
           </Paper>
         </Box>
       )}

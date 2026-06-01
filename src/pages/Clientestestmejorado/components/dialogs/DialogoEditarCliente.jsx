@@ -13,10 +13,12 @@ import {
   MenuItem,
   Alert,
   Grid,
+  Tooltip,
 } from '@mui/material';
 import {
   ManageAccounts as ManageAccountsIcon,
   Close as CloseIcon,
+  DeleteOutline as DeleteIcon,
 } from '@mui/icons-material';
 import { formatMoney, parseMoney } from '../../utils/loanCalculations';
 
@@ -29,21 +31,56 @@ const ESTADOS = [
 // Muestra TODA la informacion del cliente. Solo se pueden editar el estado y
 // la fecha del prestamo; el resto de campos es de solo lectura.
 const DialogoEditarCliente = ({ open, onClose, cliente, onGuardar }) => {
+  const dinero = (valor) => `$${formatMoney(parseMoney(valor))}`;
+
   const [estado, setEstado] = useState('');
   const [fechaPrestamo, setFechaPrestamo] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [filas, setFilas] = useState([]);
 
-  // Inicializa los campos editables cada vez que se abre el modal.
+  // Construye la lista de filas de solo lectura a partir del cliente.
+  const construirFilas = (c) => {
+    if (!c) return [];
+    const filasBase = [
+      { key: 'monto_prestamo', label: 'Monto del Préstamo', value: dinero(c.monto_prestamo) },
+      { key: 'porcentaje_interes', label: '% Interés', value: `${c.porcentaje_interes}%` },
+      { key: 'tipo_prestamo', label: 'Tipo de Préstamo', value: c.tipo_prestamo || '—' },
+      { key: 'duracion_prestamo', label: 'Duración', value: `${c.duracion_prestamo} meses` },
+      { key: 'dia_cobro', label: 'Día de Cobro', value: c.dia_cobro || '—' },
+      { key: 'numero_cuotas', label: 'N° de Cuotas', value: c.numero_cuotas },
+      { key: 'valor_cuota', label: 'Valor Cuota', value: dinero(c.valor_cuota) },
+      { key: 'interes_mensual', label: 'Interés Mensual', value: dinero(c.interes_mensual) },
+      { key: 'total_interes_pagar', label: 'Total Interés a Pagar', value: dinero(c.total_interes_pagar) },
+      { key: 'saldo_total_pagar', label: 'Saldo Total a Pagar', value: dinero(c.saldo_total_pagar) },
+      { key: 'interes_acumulado', label: 'Interés Acumulado', value: dinero(c.interes_acumulado) },
+    ];
+    if (c.prestamo_sin_cronograma) {
+      filasBase.push({
+        key: 'sin_cronograma',
+        label: 'Préstamo sin cronograma',
+        value: `Sí — Pagado: ${dinero(c.total_pagado_cuotas_sin_cronograma)}`,
+      });
+    }
+    return filasBase;
+  };
+
+  // Inicializa los campos editables y las filas cada vez que se abre el modal
+  // (asi las filas quitadas vuelven a aparecer al reabrir).
   useEffect(() => {
     if (open && cliente) {
       setEstado(cliente.estado || 'vigente');
       setFechaPrestamo(cliente.fecha_prestamo || '');
+      setFilas(construirFilas(cliente));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, cliente]);
 
   if (!cliente) return null;
 
-  const dinero = (valor) => `$${formatMoney(parseMoney(valor))}`;
+  // Quita una fila solo de la vista (estado local); NO toca la base de datos.
+  const quitarFila = (key) => {
+    setFilas((prev) => prev.filter((f) => f.key !== key));
+  };
 
   const hayCambios =
     estado !== cliente.estado || fechaPrestamo !== cliente.fecha_prestamo;
@@ -61,8 +98,8 @@ const DialogoEditarCliente = ({ open, onClose, cliente, onGuardar }) => {
     if (ok) onClose();
   };
 
-  // Fila de solo lectura (etiqueta + valor, una debajo de la otra).
-  const FilaLectura = ({ label, value }) => (
+  // Fila de solo lectura (etiqueta + valor + boton para quitar de la vista).
+  const FilaLectura = ({ label, value, onQuitar }) => (
     <Box
       sx={{
         display: 'flex',
@@ -74,7 +111,14 @@ const DialogoEditarCliente = ({ open, onClose, cliente, onGuardar }) => {
       }}
     >
       <Typography variant="caption" color="text.secondary">{label}</Typography>
-      <Typography variant="body2" sx={{ fontWeight: 600, textAlign: 'right' }}>{value}</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600, textAlign: 'right' }}>{value}</Typography>
+        <Tooltip title="Quitar de la vista">
+          <IconButton size="small" color="error" onClick={onQuitar}>
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
     </Box>
   );
 
@@ -93,13 +137,6 @@ const DialogoEditarCliente = ({ open, onClose, cliente, onGuardar }) => {
       </DialogTitle>
 
       <DialogContent dividers>
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>{cliente.nombre || '—'}</Typography>
-          <Typography variant="body2" color="text.secondary">
-            Tarjeta: {cliente.numero_tarjeta || '—'}
-          </Typography>
-        </Box>
-
         <Alert severity="info" sx={{ mb: 2 }}>
           Solo puedes modificar el <strong>Estado</strong> y la <strong>Fecha del Préstamo</strong>.
           Los demás campos son de solo lectura.
@@ -138,22 +175,25 @@ const DialogoEditarCliente = ({ open, onClose, cliente, onGuardar }) => {
         <Typography variant="subtitle2" color="text.secondary" gutterBottom>
           Datos del Préstamo (solo lectura)
         </Typography>
-        <FilaLectura label="Monto del Préstamo" value={dinero(cliente.monto_prestamo)} />
-        <FilaLectura label="% Interés" value={`${cliente.porcentaje_interes}%`} />
-        <FilaLectura label="Tipo de Préstamo" value={cliente.tipo_prestamo || '—'} />
-        <FilaLectura label="Duración" value={`${cliente.duracion_prestamo} meses`} />
-        <FilaLectura label="Día de Cobro" value={cliente.dia_cobro || '—'} />
-        <FilaLectura label="N° de Cuotas" value={cliente.numero_cuotas} />
-        <FilaLectura label="Valor Cuota" value={dinero(cliente.valor_cuota)} />
-        <FilaLectura label="Interés Mensual" value={dinero(cliente.interes_mensual)} />
-        <FilaLectura label="Total Interés a Pagar" value={dinero(cliente.total_interes_pagar)} />
-        <FilaLectura label="Saldo Total a Pagar" value={dinero(cliente.saldo_total_pagar)} />
-        <FilaLectura label="Interés Acumulado" value={dinero(cliente.interes_acumulado)} />
-        {cliente.prestamo_sin_cronograma && (
-          <FilaLectura
-            label="Préstamo sin cronograma"
-            value={`Sí — Pagado: ${dinero(cliente.total_pagado_cuotas_sin_cronograma)}`}
-          />
+        <Box sx={{ mb: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>{cliente.nombre || '—'}</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Tarjeta: {cliente.numero_tarjeta || '—'}
+          </Typography>
+        </Box>
+        {filas.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+            No hay información para mostrar.
+          </Typography>
+        ) : (
+          filas.map((fila) => (
+            <FilaLectura
+              key={fila.key}
+              label={fila.label}
+              value={fila.value}
+              onQuitar={() => quitarFila(fila.key)}
+            />
+          ))
         )}
       </DialogContent>
 
