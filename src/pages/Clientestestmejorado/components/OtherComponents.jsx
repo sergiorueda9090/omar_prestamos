@@ -357,54 +357,6 @@ export const LoanInstallmentsManager = ({ cuotas, pagosIntereses = [] }) => {
         </Box>
       )}
 
-      {/* Historial de Mora por Pago de Cuota */}
-      {pagosCuota.length > 0 && (
-        <Box sx={{ mt: 3 }}>
-          <Typography variant="h6" gutterBottom sx={{ color: 'error.main' }}>
-            <ScheduleIcon sx={{ verticalAlign: 'middle', mr: 1 }} />Historial de Mora
-          </Typography>
-          <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-            <Box sx={{ display: 'grid', gridTemplateColumns: '0.6fr 1fr 1fr 1fr 0.9fr 1.5fr', backgroundColor: 'error.main', color: 'white' }}>
-              {['N°', 'Vencimiento', 'Pago Real', 'Monto', 'Días Mora', 'Descripción'].map((header, idx) => (
-                <Box key={idx} sx={{ p: 1.5, textAlign: 'center', borderRight: idx < 5 ? '1px solid rgba(255,255,255,0.2)' : 'none' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '13px' }}>{header}</Typography>
-                </Box>
-              ))}
-            </Box>
-            {pagosCuota.map((pago, index) => {
-              const mora = pago.dias_mora || 0;
-              return (
-                <Box key={pago.id} sx={{ display: 'grid', gridTemplateColumns: '0.6fr 1fr 1fr 1fr 0.9fr 1.5fr', backgroundColor: mora > 0 ? 'rgba(244, 67, 54, 0.08)' : 'rgba(76, 175, 80, 0.08)', borderBottom: index < pagosCuota.length - 1 ? '1px solid #dee2e6' : 'none' }}>
-                  <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{index + 1}</Typography>
-                  </Box>
-                  <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
-                    <Typography variant="body2">{pago.fecha_proximo_pago ? dayjs(pago.fecha_proximo_pago).format('DD/MM/YYYY') : '—'}</Typography>
-                  </Box>
-                  <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
-                    <Typography variant="body2">{dayjs(pago.fecha_pago_real || pago.fecha).format('DD/MM/YYYY')}</Typography>
-                  </Box>
-                  <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>${formatMoney(pago.monto)}</Typography>
-                  </Box>
-                  <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
-                    <Chip
-                      label={mora > 0 ? `${mora} día${mora === 1 ? '' : 's'}` : 'Al día'}
-                      color={mora > 0 ? 'error' : 'success'}
-                      size="small"
-                      sx={{ fontWeight: 'bold' }}
-                    />
-                  </Box>
-                  <Box sx={{ p: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: 'none' }}>
-                    <Typography variant="body2" sx={{ fontSize: '12px', textAlign: 'left', width: '100%' }}>{pago.descripcion || '—'}</Typography>
-                  </Box>
-                </Box>
-              );
-            })}
-          </Paper>
-        </Box>
-      )}
-
       <DialogoEditarFecha open={dialogoFechaAbierto} onClose={() => setDialogoFechaAbierto(false)} cuota={cuotaSeleccionada} />
       <DialogoConfirmarEliminarPago open={dialogoEliminarAbierto} onClose={() => setDialogoEliminarAbierto(false)} cuota={cuotaSeleccionada} />
     </Box>

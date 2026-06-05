@@ -786,6 +786,12 @@ const BotonesPagoRapido = () => {
   // Fecha del proximo pago = vencimiento de la cuota pendiente mas antigua (informativa).
   const proximaCuota = cuotasPendientes[0];
   const fechaProximoPago = proximaCuota ? dayjs(proximaCuota.fecha_pago).format('DD/MM/YYYY') : null;
+  // Fecha de pago real de referencia = hoy (aun no se ha pagado esta cuota).
+  const fechaPagoReal = proximaCuota ? dayjs().format('DD/MM/YYYY') : null;
+  // Dias de mora acumulados a hoy de esa cuota (0 si todavia no vence).
+  const diasMora = proximaCuota
+    ? Math.max(0, dayjs().diff(dayjs(proximaCuota.fecha_pago), 'day'))
+    : 0;
 
   // Pago de saldo total mas reciente con snapshot (revertible)
   const pagoSaldoTotalRevertible = (pagos || [])
@@ -834,15 +840,34 @@ const BotonesPagoRapido = () => {
       <Paper elevation={3} sx={{ p: 3, mb: 3, backgroundColor: 'rgba(25, 118, 210, 0.05)' }}>
         <Typography variant="h6" gutterBottom color="primary" sx={{ mb: 1 }}>Opciones de Pago Rápido</Typography>
 
-        {/* Fecha del proximo pago (informativa) */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-          <ScheduleIcon fontSize="small" sx={{ color: 'info.main' }} />
-          <Typography variant="body2" color="text.secondary">
-            Próximo pago:{' '}
-            <strong style={{ color: fechaProximoPago ? '#0288d1' : '#2e7d32' }}>
-              {fechaProximoPago || 'Préstamo al día'}
-            </strong>
-          </Typography>
+        {/* Fecha del proximo pago, fecha de pago real y mora (informativo) */}
+        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: { xs: 0.5, sm: 2 }, mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <ScheduleIcon fontSize="small" sx={{ color: 'info.main' }} />
+            <Typography variant="body2" color="text.secondary">
+              Próximo pago:{' '}
+              <strong style={{ color: fechaProximoPago ? '#0288d1' : '#2e7d32' }}>
+                {fechaProximoPago || 'Préstamo al día'}
+              </strong>
+            </Typography>
+          </Box>
+
+          {proximaCuota && (
+            <Typography variant="body2" color="text.secondary">
+              Fecha pago real:{' '}
+              <strong style={{ color: '#455a64' }}>{fechaPagoReal}</strong>
+            </Typography>
+          )}
+
+          {diasMora > 0 && (
+            <Chip
+              size="small"
+              color="error"
+              icon={<ScheduleIcon />}
+              label={`${diasMora} día${diasMora === 1 ? '' : 's'} de mora`}
+              sx={{ fontWeight: 700 }}
+            />
+          )}
         </Box>
 
         <Grid container spacing={2}>

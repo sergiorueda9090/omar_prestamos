@@ -28,13 +28,16 @@ const ESTADOS = [
   { value: 'perdido', label: 'Perdido' },
 ];
 
-// Muestra TODA la informacion del cliente. Solo se pueden editar el estado y
-// la fecha del prestamo; el resto de campos es de solo lectura.
+// Muestra TODA la informacion del cliente. Se pueden editar el estado, la fecha
+// del prestamo y la informacion basica (numero de tarjeta y nombre). Los terminos
+// del prestamo (monto, % interes, duracion, etc.) son de solo lectura.
 const DialogoEditarCliente = ({ open, onClose, cliente, onGuardar }) => {
   const dinero = (valor) => `$${formatMoney(parseMoney(valor))}`;
 
   const [estado, setEstado] = useState('');
   const [fechaPrestamo, setFechaPrestamo] = useState('');
+  const [numeroTarjeta, setNumeroTarjeta] = useState('');
+  const [nombre, setNombre] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [filas, setFilas] = useState([]);
 
@@ -70,6 +73,8 @@ const DialogoEditarCliente = ({ open, onClose, cliente, onGuardar }) => {
     if (open && cliente) {
       setEstado(cliente.estado || 'vigente');
       setFechaPrestamo(cliente.fecha_prestamo || '');
+      setNumeroTarjeta(cliente.numero_tarjeta || '');
+      setNombre(cliente.nombre || '');
       setFilas(construirFilas(cliente));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,15 +87,26 @@ const DialogoEditarCliente = ({ open, onClose, cliente, onGuardar }) => {
     setFilas((prev) => prev.filter((f) => f.key !== key));
   };
 
+  const tarjetaTrim = numeroTarjeta.trim();
+  const nombreTrim = nombre.trim();
+
   const hayCambios =
-    estado !== cliente.estado || fechaPrestamo !== cliente.fecha_prestamo;
+    estado !== cliente.estado ||
+    fechaPrestamo !== cliente.fecha_prestamo ||
+    tarjetaTrim !== (cliente.numero_tarjeta || '') ||
+    nombreTrim !== (cliente.nombre || '');
+
+  // No permitir guardar campos basicos vacios.
+  const camposBasicosValidos = tarjetaTrim !== '' && nombreTrim !== '';
 
   const handleGuardar = async () => {
-    if (!hayCambios) return;
+    if (!hayCambios || !camposBasicosValidos) return;
 
     const cambios = {};
     if (estado !== cliente.estado) cambios.estado = estado;
     if (fechaPrestamo !== cliente.fecha_prestamo) cambios.fecha_prestamo = fechaPrestamo;
+    if (tarjetaTrim !== (cliente.numero_tarjeta || '')) cambios.numero_tarjeta = tarjetaTrim;
+    if (nombreTrim !== (cliente.nombre || '')) cambios.nombre = nombreTrim;
 
     setGuardando(true);
     const ok = await onGuardar(cambios);
@@ -138,12 +154,33 @@ const DialogoEditarCliente = ({ open, onClose, cliente, onGuardar }) => {
 
       <DialogContent dividers>
         <Alert severity="info" sx={{ mb: 2 }}>
-          Solo puedes modificar el <strong>Estado</strong> y la <strong>Fecha del Préstamo</strong>.
-          Los demás campos son de solo lectura.
+          Puedes modificar el <strong>Estado</strong>, la <strong>Fecha del Préstamo</strong> y la
+          información básica (<strong>Número de Tarjeta</strong> y <strong>Nombre</strong>).
+          Los términos del préstamo (monto, % interés, duración…) son de solo lectura.
         </Alert>
 
         {/* === Campos EDITABLES === */}
         <Grid container spacing={2} sx={{ mb: 2 }}>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Número de Tarjeta"
+              value={numeroTarjeta}
+              onChange={(e) => setNumeroTarjeta(e.target.value)}
+              error={tarjetaTrim === ''}
+              helperText={tarjetaTrim === '' ? 'La tarjeta es obligatoria' : 'No puede repetirse con otro cliente'}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Nombre completo"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              error={nombreTrim === ''}
+              helperText={nombreTrim === '' ? 'El nombre es obligatorio' : ' '}
+            />
+          </Grid>
           <Grid item xs={12} sm={6}>
             <TextField
               select
@@ -173,14 +210,8 @@ const DialogoEditarCliente = ({ open, onClose, cliente, onGuardar }) => {
 
         {/* === Campos SOLO LECTURA === */}
         <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-          Datos del Préstamo (solo lectura)
+          Términos del Préstamo (solo lectura)
         </Typography>
-        <Box sx={{ mb: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>{cliente.nombre || '—'}</Typography>
-          <Typography variant="body2" color="text.secondary">
-            Tarjeta: {cliente.numero_tarjeta || '—'}
-          </Typography>
-        </Box>
         {filas.length === 0 ? (
           <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
             No hay información para mostrar.
@@ -205,7 +236,7 @@ const DialogoEditarCliente = ({ open, onClose, cliente, onGuardar }) => {
           onClick={handleGuardar}
           variant="contained"
           color="primary"
-          disabled={!hayCambios || guardando}
+          disabled={!hayCambios || !camposBasicosValidos || guardando}
         >
           {guardando ? 'Guardando...' : 'Guardar Cambios'}
         </Button>
