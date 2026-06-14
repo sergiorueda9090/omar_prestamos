@@ -576,6 +576,50 @@ export const actionCambiarFechaCuota = (cuotaId, nuevaFecha) => {
 
 
 // =============================================================================
+// CAMBIAR FECHA PROXIMO PAGO (promesa) DE UNA CUOTA
+// Endpoint: PUT /clientes/api/v2/cuotas/<id>/cambiar-proximo-pago/
+// Solo cambia la fecha que el cliente promete pagar; NO toca el vencimiento
+// real (fecha_pago). La mora = fecha_proximo_pago - fecha_pago.
+// =============================================================================
+
+export const actionCambiarFechaProximoPago = (cuotaId, nuevaFecha) => {
+  return async (dispatch, getState) => {
+    await dispatch(handleShowBackDrop());
+
+    const { authStore } = getState();
+
+    const options = {
+      method: 'PUT',
+      url: `${dominio}${path}cuotas/${cuotaId}/cambiar-proximo-pago/`,
+      headers: {
+        Authorization: `Bearer ${authStore.token}`,
+        "Content-Type": "application/json",
+      },
+      data: { fecha_proximo_pago: nuevaFecha || null },
+    };
+
+    try {
+      const response = await axios.request(options);
+
+      if (response.status === 200) {
+        const datosRedux = mapearRespuestaARedux(response.data);
+        await dispatch(showData(datosRedux));
+        await dispatch(handleHideBackDrop());
+        await alertaActualizado();
+        return;
+      }
+    } catch (error) {
+      console.error("Error al cambiar fecha proximo pago:", error);
+      await dispatch(handleHideBackDrop());
+      await alertaError("Error al cambiar la fecha de próximo pago");
+      return;
+    }
+    await dispatch(handleHideBackDrop());
+  };
+};
+
+
+// =============================================================================
 // ELIMINAR PAGO CUOTA: Revertir el pago de una cuota (vuelve a pendiente)
 // =============================================================================
 // Endpoint: POST /clientes/api/v2/cuotas/<id>/eliminar-pago/
@@ -609,6 +653,49 @@ export const actionEliminarPagoCuota = (cuotaId) => {
       console.error("Error al eliminar pago de cuota:", error);
       await dispatch(handleHideBackDrop());
       await alertaError("Error al eliminar pago de cuota");
+      return;
+    }
+    await dispatch(handleHideBackDrop());
+  };
+};
+
+
+// =============================================================================
+// ELIMINAR PAGO: Eliminar un pago individual del historial y recalcular
+// =============================================================================
+// Endpoint: POST /clientes/api/v2/pagos/<pago_id>/eliminar/
+// Sirve para pagos de cuota (con o sin cronograma). El backend recalcula
+// el cronograma desde los pagos restantes para que todo cuadre de nuevo.
+// =============================================================================
+
+export const actionEliminarPago = (pagoId) => {
+  return async (dispatch, getState) => {
+    await dispatch(handleShowBackDrop());
+
+    const { authStore } = getState();
+
+    const options = {
+      method: 'POST',
+      url: `${dominio}${path}pagos/${pagoId}/eliminar/`,
+      headers: {
+        Authorization: `Bearer ${authStore.token}`,
+      },
+    };
+
+    try {
+      const response = await axios.request(options);
+
+      if (response.status === 200) {
+        const datosRedux = mapearRespuestaARedux(response.data);
+        await dispatch(showData(datosRedux));
+        await dispatch(handleHideBackDrop());
+        await alertaEliminado("Pago eliminado");
+        return;
+      }
+    } catch (error) {
+      console.error("Error al eliminar pago:", error);
+      await dispatch(handleHideBackDrop());
+      await alertaError("Error al eliminar pago");
       return;
     }
     await dispatch(handleHideBackDrop());

@@ -24,8 +24,28 @@ import {
   actionPagarInteres,
   actionPagarSaldoTotal,
   actionRevertirPagoSaldoTotal,
+  actionCambiarFechaProximoPago,
   actionCambiarFechaCuota,
 } from '../../../store/prestamosTestStore/prestamosTestStoreActions';
+
+
+// ============================================================================
+// HELPER: REFERENCIA DE "FECHA PROXIMO PAGO" PARA LA MORA
+// ============================================================================
+// Devuelve la fecha de referencia contra la que se mide la mora:
+//   - la promesa del cliente (fecha_proximo_pago de la cuota) SI es futura;
+//   - si no hay promesa (o ya paso), HOY.
+// Asi la mora SIEMPRE refleja el atraso real, igual que en el panel de Pago
+// Rapido, aunque no exista una promesa guardada. Mora = referencia - vencimiento.
+// ============================================================================
+
+const calcularFechaProximoPagoRef = (fechaProximoPagoCuota) => {
+  const hoy = dayjs();
+  const promesa = fechaProximoPagoCuota ? dayjs(fechaProximoPagoCuota) : null;
+  return (promesa && promesa.isAfter(hoy))
+    ? promesa.format('YYYY-MM-DD')
+    : hoy.format('YYYY-MM-DD');
+};
 
 
 // ============================================================================
@@ -110,30 +130,31 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
   const cuotasPendientes = cuotas.filter(c => c.estado_pago !== 'pagado');
   const saldoTotalPendiente = cuotasPendientes.reduce((sum, c) => sum + parseMoney(c.saldo || c.valor), 0);
 
-  // Cuota en la que sigue debiendo (la pendiente mas antigua). Su fecha_pago
-  // es el vencimiento esperado que se usa para calcular la mora.
+  // Cuota en la que sigue debiendo (la pendiente mas antigua).
+  // Fecha Pago Real = su vencimiento real (fecha_pago).
+  // Fecha Proximo Pago = la promesa del cliente si es futura; si no, HOY
+  // (misma logica que el panel: la mora siempre refleja el atraso real).
   const proximaCuotaPendiente = cuotasPendientes[0];
-  const fechaVencimientoDefault = proximaCuotaPendiente?.fecha_pago || '';
+  const vencimientoDefault = proximaCuotaPendiente?.fecha_pago || '';
+  const promesaDefault = calcularFechaProximoPagoRef(proximaCuotaPendiente?.fecha_proximo_pago);
 
   useEffect(() => {
     if (open) {
       setMontoPago('');
       setDistribucion([]);
       setFechaPago(dayjs().format('YYYY-MM-DD'));
-      // Por defecto: proximo pago = vencimiento de la cuota en mora; pago real = hoy.
-      setFechaProximoPago(fechaVencimientoDefault);
-      setFechaPagoReal(dayjs().format('YYYY-MM-DD'));
+      // Proximo pago = promesa del cliente; pago real = vencimiento real de la cuota.
+      setFechaProximoPago(promesaDefault);
+      setFechaPagoReal(vencimientoDefault);
       setDescripcion('');
     }
-  }, [open, fechaVencimientoDefault]);
+  }, [open, promesaDefault, vencimientoDefault]);
 
-  // Mora de ESTE pago: dias entre el vencimiento esperado y la fecha real de pago.
+  // Mora (solo visual, no se guarda en el backend): diferencia de dias entre la
+  // fecha que el cliente dice que pagara (Fecha Proximo Pago) y la fecha en que
+  // la cuota se debia pagar (Fecha Pago Real). Si ambas son iguales, es 0.
   const diasMora = (fechaProximoPago && fechaPagoReal)
-    ? Math.max(0, dayjs(fechaPagoReal).diff(dayjs(fechaProximoPago), 'day'))
-    : 0;
-  // Mora acumulada a hoy en esa cuota (cuantos dias lleva de mora si aun no se paga).
-  const diasMoraAcumulada = fechaProximoPago
-    ? Math.max(0, dayjs().diff(dayjs(fechaProximoPago), 'day'))
+    ? Math.max(0, dayjs(fechaProximoPago).diff(dayjs(fechaPagoReal), 'day'))
     : 0;
 
   const calcularDistribucion = (monto) => {
@@ -146,10 +167,10 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
       const saldoCuota = parseMoney(cuota.saldo !== undefined ? cuota.saldo : cuota.valor);
       if (saldoCuota <= 0 || cuota.estado_pago === 'pagado') continue;
       if (montoRestante >= saldoCuota) {
-        nuevaDist.push({ numero: cuota.numero, abonar: saldoCuota, saldoAntes: saldoCuota, saldoDespues: 0, estado: 'pagado' });
+        nuevaDist.push({ numero: cuota.numero, fechaVencimiento: cuota.fecha_pago, abonar: saldoCuota, saldoAntes: saldoCuota, saldoDespues: 0, estado: 'pagado' });
         montoRestante -= saldoCuota;
       } else {
-        nuevaDist.push({ numero: cuota.numero, abonar: montoRestante, saldoAntes: saldoCuota, saldoDespues: saldoCuota - montoRestante, estado: 'parcial' });
+        nuevaDist.push({ numero: cuota.numero, fechaVencimiento: cuota.fecha_pago, abonar: montoRestante, saldoAntes: saldoCuota, saldoDespues: saldoCuota - montoRestante, estado: 'parcial' });
         montoRestante = 0;
       }
     }
@@ -162,10 +183,15 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
     calcularDistribucion(value);
   };
 
-  const handleConfirmar = () => {
+  const handleConfirmar = async () => {
     const monto = parseMoney(montoPago);
     if (!monto || monto <= 0) { alert('El monto debe ser mayor a 0'); return; }
-    dispatch(actionPagarCuota(monto, fechaPago, descripcion, fechaProximoPago, fechaPagoReal));
+    // Si cambio la Fecha Pago Real, actualiza el vencimiento real de la cuota
+    // (se refleja en los demas modales y el cronograma) antes de registrar el pago.
+    if (proximaCuotaPendiente && fechaPagoReal && fechaPagoReal !== vencimientoDefault) {
+      await dispatch(actionCambiarFechaCuota(proximaCuotaPendiente.id, fechaPagoReal));
+    }
+    await dispatch(actionPagarCuota(monto, fechaPago, descripcion, fechaProximoPago, fechaPagoReal));
     onClose();
   };
 
@@ -216,10 +242,11 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
-                fullWidth type="date" label="Fecha de Pago" value={fechaPago}
+                fullWidth type="date" label="Fecha del Pago" value={fechaPago}
                 onChange={(e) => setFechaPago(e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                helperText="Cuando el cliente paga; queda registrada"
                 sx={sxInput()}
               />
             </Grid>
@@ -229,6 +256,7 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
                 onChange={(e) => setFechaProximoPago(e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                helperText="Fecha que el cliente dice que pagará"
                 sx={sxInput()}
               />
             </Grid>
@@ -238,11 +266,13 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
                 onChange={(e) => setFechaPagoReal(e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                helperText="Vencimiento real de la cuota (editable: actualiza el cronograma)"
                 sx={sxInput()}
               />
             </Grid>
 
-            {/* Indicador de mora calculado entre Fecha Próximo Pago y Fecha Pago Real */}
+            {/* Resumen de mora: Fecha Proximo Pago (promesa) - Fecha Pago Real
+                (vencimiento). El detalle tambien aparece por cuota en la tabla. */}
             <Grid item xs={12}>
               <Alert
                 severity={diasMora > 0 ? 'error' : 'success'}
@@ -251,16 +281,11 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
               >
                 {diasMora > 0 ? (
                   <>
-                    <strong>{diasMora} día{diasMora === 1 ? '' : 's'} de mora</strong> en este pago
-                    {' '}(venció el {dayjs(fechaProximoPago).format('DD/MM/YYYY')}, pagó el {dayjs(fechaPagoReal).format('DD/MM/YYYY')}).
+                    <strong>{diasMora} día{diasMora === 1 ? '' : 's'} de mora</strong>
+                    {' '}(Fecha Próximo Pago {dayjs(fechaProximoPago).format('DD/MM/YYYY')} − Fecha Pago Real {dayjs(fechaPagoReal).format('DD/MM/YYYY')}).
                   </>
                 ) : (
-                  <>Pago <strong>al día</strong> (sin mora respecto al vencimiento {fechaProximoPago ? `del ${dayjs(fechaProximoPago).format('DD/MM/YYYY')}` : ''}).</>
-                )}
-                {diasMoraAcumulada > 0 && (
-                  <Box component="span" sx={{ display: 'block', fontSize: '0.8rem', mt: 0.5, opacity: 0.9 }}>
-                    Esta cuota lleva <strong>{diasMoraAcumulada} día{diasMoraAcumulada === 1 ? '' : 's'}</strong> de mora a hoy.
-                  </Box>
+                  <>Sin mora: la <strong>Fecha Próximo Pago</strong> no supera la <strong>Fecha Pago Real</strong>.</>
                 )}
               </Alert>
             </Grid>
@@ -287,6 +312,8 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
                 <TableHead>
                   <TableRow sx={{ backgroundColor: '#43a047' }}>
                     <TableCell sx={{ color: 'white', fontWeight: 700, fontSize: '0.75rem' }}>Cuota</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 700, fontSize: '0.75rem' }}>Fecha Pago Real</TableCell>
+                    <TableCell align="center" sx={{ color: 'white', fontWeight: 700, fontSize: '0.75rem' }}>Días Mora</TableCell>
                     <TableCell align="right" sx={{ color: 'white', fontWeight: 700, fontSize: '0.75rem' }}>Saldo Antes</TableCell>
                     <TableCell align="right" sx={{ color: 'white', fontWeight: 700, fontSize: '0.75rem' }}>Abonar</TableCell>
                     <TableCell align="right" sx={{ color: 'white', fontWeight: 700, fontSize: '0.75rem' }}>Saldo Después</TableCell>
@@ -297,6 +324,12 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
                   {distribucion.map((dist, idx) => (
                     <TableRow key={idx} sx={{ '&:nth-of-type(even)': { backgroundColor: '#f1f8e9' }, '&:hover': { backgroundColor: '#dcedc8' } }}>
                       <TableCell><Chip label={`#${dist.numero}`} size="small" variant="outlined" sx={{ fontWeight: 700 }} /></TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{fechaPagoReal ? dayjs(fechaPagoReal).format('DD/MM/YYYY') : '—'}</TableCell>
+                      <TableCell align="center">
+                        {diasMora > 0
+                          ? <Chip label={`${diasMora} día${diasMora === 1 ? '' : 's'}`} color="error" size="small" sx={{ fontWeight: 700 }} />
+                          : <Chip label="Al día" color="success" size="small" variant="outlined" />}
+                      </TableCell>
                       <TableCell align="right" sx={{ fontFamily: 'monospace' }}>${formatMoney(dist.saldoAntes)}</TableCell>
                       <TableCell align="right" sx={{ color: '#2e7d32', fontWeight: 700, fontFamily: 'monospace' }}>${formatMoney(dist.abonar)}</TableCell>
                       <TableCell align="right" sx={{ fontFamily: 'monospace' }}>${formatMoney(dist.saldoDespues)}</TableCell>
@@ -336,22 +369,54 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
 
 const DialogoPagoInteresPersonalizado = ({ open, onClose }) => {
   const dispatch = useDispatch();
-  const { porcentajeInteres, montoPrestamo } = useSelector(state => state.prestamosTestStore);
+  const { porcentajeInteres, montoPrestamo, cuotas } = useSelector(state => state.prestamosTestStore);
   const [montoPago, setMontoPago] = useState('');
   const [fechaPago, setFechaPago] = useState(dayjs().format('YYYY-MM-DD'));
   const [fechaProximoPago, setFechaProximoPago] = useState('');
-  const [fechaPagoReal, setFechaPagoReal] = useState(dayjs().format('YYYY-MM-DD'));
+  const [fechaPagoReal, setFechaPagoReal] = useState('');
   const [descripcion, setDescripcion] = useState('');
 
   const capital = parseMoney(montoPrestamo);
   const interesMensualRef = capital * (parseFloat(porcentajeInteres) || 0) / 100;
 
-  useEffect(() => { if (open) { setMontoPago(''); setFechaPago(dayjs().format('YYYY-MM-DD')); setFechaProximoPago(''); setFechaPagoReal(dayjs().format('YYYY-MM-DD')); setDescripcion(''); } }, [open]);
+  // Igual que en Pagar Cuota: Fecha Pago Real = vencimiento real de la proxima
+  // cuota pendiente; Fecha Proximo Pago = la promesa del cliente si es futura,
+  // si no HOY (misma logica que el panel; la mora refleja el atraso real).
+  const cuotasPendientes = (cuotas || []).filter(c => c.estado_pago !== 'pagado');
+  const proximaCuotaPendiente = cuotasPendientes[0];
+  const vencimientoDefault = proximaCuotaPendiente?.fecha_pago || '';
+  const promesaDefault = calcularFechaProximoPagoRef(proximaCuotaPendiente?.fecha_proximo_pago);
 
-  const handleConfirmar = () => {
+  useEffect(() => {
+    if (open) {
+      setMontoPago('');
+      setFechaPago(dayjs().format('YYYY-MM-DD'));
+      setFechaProximoPago(promesaDefault);
+      setFechaPagoReal(vencimientoDefault);
+      setDescripcion('');
+    }
+  }, [open, promesaDefault, vencimientoDefault]);
+
+  // Mora (solo visual): diferencia de dias entre la Fecha Proximo Pago (promesa)
+  // y la Fecha Pago Real (vencimiento real de la cuota).
+  const diasMora = (fechaProximoPago && fechaPagoReal)
+    ? Math.max(0, dayjs(fechaProximoPago).diff(dayjs(fechaPagoReal), 'day'))
+    : 0;
+
+  const handleConfirmar = async () => {
     const monto = parseMoney(montoPago);
     if (!monto || monto <= 0) { alert('El monto debe ser mayor a 0'); return; }
-    dispatch(actionPagarInteres(monto, fechaPago, descripcion));
+    // 1. Registrar el pago de interes (monto, fecha, descripcion).
+    await dispatch(actionPagarInteres(monto, fechaPago, descripcion));
+    // 2. Si cambio la promesa (Fecha Proximo Pago), guardarla en la cuota para
+    // que se refleje en el panel y en los demas modales (sin tocar el vencimiento).
+    if (proximaCuotaPendiente && fechaProximoPago && fechaProximoPago !== promesaDefault) {
+      await dispatch(actionCambiarFechaProximoPago(proximaCuotaPendiente.id, fechaProximoPago));
+    }
+    // 3. Si cambio la Fecha Pago Real, actualiza el vencimiento real de la cuota.
+    if (proximaCuotaPendiente && fechaPagoReal && fechaPagoReal !== vencimientoDefault) {
+      await dispatch(actionCambiarFechaCuota(proximaCuotaPendiente.id, fechaPagoReal));
+    }
     onClose();
   };
 
@@ -397,10 +462,11 @@ const DialogoPagoInteresPersonalizado = ({ open, onClose }) => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
-                fullWidth type="date" label="Fecha de Pago" value={fechaPago}
+                fullWidth type="date" label="Fecha del Pago" value={fechaPago}
                 onChange={(e) => setFechaPago(e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                helperText="Cuando el cliente paga; queda registrada"
                 sx={sxInput()}
               />
             </Grid>
@@ -410,6 +476,7 @@ const DialogoPagoInteresPersonalizado = ({ open, onClose }) => {
                 onChange={(e) => setFechaProximoPago(e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                helperText="Fecha que el cliente dice que pagará"
                 sx={sxInput()}
               />
             </Grid>
@@ -419,9 +486,29 @@ const DialogoPagoInteresPersonalizado = ({ open, onClose }) => {
                 onChange={(e) => setFechaPagoReal(e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+                helperText="Vencimiento real de la cuota (editable: actualiza el cronograma)"
                 sx={sxInput()}
               />
             </Grid>
+
+            {/* Resumen de mora: Fecha Proximo Pago (promesa) - Fecha Pago Real (vencimiento). */}
+            <Grid item xs={12}>
+              <Alert
+                severity={diasMora > 0 ? 'error' : 'success'}
+                icon={<ScheduleIcon />}
+                sx={{ borderRadius: 2, alignItems: 'center' }}
+              >
+                {diasMora > 0 ? (
+                  <>
+                    <strong>{diasMora} día{diasMora === 1 ? '' : 's'} de mora</strong>
+                    {' '}(Fecha Próximo Pago {dayjs(fechaProximoPago).format('DD/MM/YYYY')} − Fecha Pago Real {dayjs(fechaPagoReal).format('DD/MM/YYYY')}).
+                  </>
+                ) : (
+                  <>Sin mora: la <strong>Fecha Próximo Pago</strong> no supera la <strong>Fecha Pago Real</strong>.</>
+                )}
+              </Alert>
+            </Grid>
+
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth multiline rows={3} label="Descripción (opcional)" value={descripcion}
@@ -637,31 +724,45 @@ const DialogoGestionProximoPago = ({ open, onClose }) => {
   // Cuota en la que sigue debiendo (la pendiente mas antigua).
   const cuotasPendientes = cuotas.filter(c => c.estado_pago !== 'pagado');
   const proximaCuota = cuotasPendientes[0];
+  // Fecha Pago Real = vencimiento REAL de la cuota (no se modifica aqui).
   const fechaVencimientoOriginal = proximaCuota ? dayjs(proximaCuota.fecha_pago).format('YYYY-MM-DD') : '';
+  // Promesa de pago: la guardada (fecha_proximo_pago) si es futura; si no hay
+  // (o ya paso), HOY. Misma logica que el panel: la mora refleja el atraso real.
+  const promesaGuardada = proximaCuota
+    ? calcularFechaProximoPagoRef(proximaCuota.fecha_proximo_pago)
+    : '';
 
   const [fechaProximoPago, setFechaProximoPago] = useState('');
-  const [fechaPagoReal, setFechaPagoReal] = useState(dayjs().format('YYYY-MM-DD'));
+  const [fechaPagoReal, setFechaPagoReal] = useState('');
 
   useEffect(() => {
     if (open) {
-      setFechaProximoPago(fechaVencimientoOriginal);
-      setFechaPagoReal(dayjs().format('YYYY-MM-DD'));
+      // Fecha Proximo Pago = la promesa del cliente (editable, lo unico que se guarda).
+      setFechaProximoPago(promesaGuardada);
+      // Fecha Pago Real = vencimiento real de la cuota (referencia para la mora).
+      setFechaPagoReal(fechaVencimientoOriginal);
     }
-  }, [open, fechaVencimientoOriginal]);
+  }, [open, promesaGuardada, fechaVencimientoOriginal]);
 
-  // Mora respecto a la fecha real de pago y mora acumulada a hoy.
+  // Mora = diferencia de dias entre la fecha que el cliente promete pagar
+  // (Fecha Proximo Pago) y el vencimiento real de la cuota (Fecha Pago Real).
   const diasMora = (fechaProximoPago && fechaPagoReal)
-    ? Math.max(0, dayjs(fechaPagoReal).diff(dayjs(fechaProximoPago), 'day'))
-    : 0;
-  const diasMoraHoy = fechaProximoPago
-    ? Math.max(0, dayjs().diff(dayjs(fechaProximoPago), 'day'))
+    ? Math.max(0, dayjs(fechaProximoPago).diff(dayjs(fechaPagoReal), 'day'))
     : 0;
 
-  const fechaCambiada = !!proximaCuota && !!fechaProximoPago && fechaProximoPago !== fechaVencimientoOriginal;
+  // Cambios a guardar: la promesa (fecha_proximo_pago) y/o el vencimiento real (fecha_pago).
+  const promesaCambiada = !!proximaCuota && !!fechaProximoPago && fechaProximoPago !== promesaGuardada;
+  const vencimientoCambiado = !!proximaCuota && !!fechaPagoReal && fechaPagoReal !== fechaVencimientoOriginal;
+  const hayCambios = promesaCambiada || vencimientoCambiado;
 
-  const handleGuardar = () => {
-    if (proximaCuota && fechaCambiada) {
-      dispatch(actionCambiarFechaCuota(proximaCuota.id, fechaProximoPago));
+  const handleGuardar = async () => {
+    // Cambiar el vencimiento real (Fecha Pago Real) si se edito.
+    if (proximaCuota && vencimientoCambiado) {
+      await dispatch(actionCambiarFechaCuota(proximaCuota.id, fechaPagoReal));
+    }
+    // Cambiar la promesa (Fecha Proximo Pago) si se edito; NO toca el vencimiento.
+    if (proximaCuota && promesaCambiada) {
+      await dispatch(actionCambiarFechaProximoPago(proximaCuota.id, fechaProximoPago));
     }
     onClose();
   };
@@ -708,7 +809,7 @@ const DialogoGestionProximoPago = ({ open, onClose }) => {
                     onChange={(e) => setFechaProximoPago(e.target.value)}
                     InputLabelProps={{ shrink: true }}
                     InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
-                    helperText="Editable: cambia el vencimiento de esta cuota"
+                    helperText="Fecha que el cliente promete pagar (no cambia el vencimiento)"
                     sx={sxInput('info.main')}
                   />
                 </Grid>
@@ -718,7 +819,7 @@ const DialogoGestionProximoPago = ({ open, onClose }) => {
                     onChange={(e) => setFechaPagoReal(e.target.value)}
                     InputLabelProps={{ shrink: true }}
                     InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
-                    helperText="Para calcular los días de mora"
+                    helperText="Vencimiento real de la cuota (editable: actualiza el cronograma)"
                     sx={sxInput()}
                   />
                 </Grid>
@@ -734,23 +835,25 @@ const DialogoGestionProximoPago = ({ open, onClose }) => {
               {diasMora > 0 ? (
                 <>
                   <strong>{diasMora} día{diasMora === 1 ? '' : 's'} de mora</strong>
-                  {' '}(venció el {dayjs(fechaProximoPago).format('DD/MM/YYYY')}, pago real el {dayjs(fechaPagoReal).format('DD/MM/YYYY')}).
+                  {' '}(Fecha Próximo Pago {dayjs(fechaProximoPago).format('DD/MM/YYYY')} − Fecha Pago Real {dayjs(fechaPagoReal).format('DD/MM/YYYY')}).
                 </>
               ) : (
-                <>Sin mora respecto a la fecha de pago real.</>
-              )}
-              {diasMoraHoy > 0 && (
-                <Box component="span" sx={{ display: 'block', fontSize: '0.8rem', mt: 0.5, opacity: 0.9 }}>
-                  Esta cuota lleva <strong>{diasMoraHoy} día{diasMoraHoy === 1 ? '' : 's'}</strong> de mora a hoy.
-                </Box>
+                <>Sin mora: la <strong>Fecha Próximo Pago</strong> no supera la <strong>Fecha Pago Real</strong>.</>
               )}
             </Alert>
 
-            {fechaCambiada && (
+            {promesaCambiada && (
               <Alert severity="info" sx={{ borderRadius: 2, mt: 2 }}>
-                Vas a cambiar el vencimiento de la cuota #{proximaCuota.numero} del
-                {' '}<strong>{dayjs(fechaVencimientoOriginal).format('DD/MM/YYYY')}</strong> al
+                Vas a registrar la <strong>Fecha Próximo Pago</strong> de la cuota #{proximaCuota.numero}:
                 {' '}<strong>{dayjs(fechaProximoPago).format('DD/MM/YYYY')}</strong>.
+              </Alert>
+            )}
+
+            {vencimientoCambiado && (
+              <Alert severity="warning" sx={{ borderRadius: 2, mt: 2 }}>
+                Vas a cambiar el <strong>vencimiento real</strong> de la cuota #{proximaCuota.numero} del
+                {' '}<strong>{dayjs(fechaVencimientoOriginal).format('DD/MM/YYYY')}</strong> al
+                {' '}<strong>{dayjs(fechaPagoReal).format('DD/MM/YYYY')}</strong> (afecta el cronograma).
               </Alert>
             )}
           </>
@@ -759,7 +862,7 @@ const DialogoGestionProximoPago = ({ open, onClose }) => {
 
       <DialogActions sx={{ px: 3, py: 2, backgroundColor: '#fafafa', borderTop: '1px solid #e0e0e0', gap: 1 }}>
         <Button onClick={onClose} variant="outlined" color="inherit" sx={{ borderRadius: 2, px: 3 }}>Cerrar</Button>
-        <Button onClick={handleGuardar} variant="contained" color="info" disabled={!fechaCambiada} startIcon={<CalendarIcon />} sx={{ borderRadius: 2, px: 3, fontWeight: 700 }}>
+        <Button onClick={handleGuardar} variant="contained" color="info" disabled={!hayCambios} startIcon={<CalendarIcon />} sx={{ borderRadius: 2, px: 3, fontWeight: 700 }}>
           Guardar Fecha
         </Button>
       </DialogActions>
@@ -783,14 +886,24 @@ const BotonesPagoRapido = () => {
   const cuotasPendientes = cuotas.filter(c => c.estado_pago !== 'pagado');
   const saldoTotalPendiente = cuotasPendientes.reduce((sum, c) => sum + parseMoney(c.saldo !== undefined ? c.saldo : c.valor), 0);
 
-  // Fecha del proximo pago = vencimiento de la cuota pendiente mas antigua (informativa).
+  // Cuota pendiente mas antigua. Fecha Pago Real = su vencimiento real (fecha_pago).
+  // Fecha Proximo Pago (referencia de mora) = la promesa del cliente SI es futura;
+  // si no hay promesa (o ya paso), se usa HOY. Asi la mora SIEMPRE refleja el
+  // atraso real aunque no haya promesa guardada. Mora = proximo - real (min 0).
+  // Al pagar la cuota mas antigua, cuotasPendientes[0] avanza a la siguiente
+  // (vence ~30 dias despues), por lo que la mora baja sola (ej: 50 -> 20 dias).
   const proximaCuota = cuotasPendientes[0];
-  const fechaProximoPago = proximaCuota ? dayjs(proximaCuota.fecha_pago).format('DD/MM/YYYY') : null;
-  // Fecha de pago real de referencia = hoy (aun no se ha pagado esta cuota).
-  const fechaPagoReal = proximaCuota ? dayjs().format('DD/MM/YYYY') : null;
-  // Dias de mora acumulados a hoy de esa cuota (0 si todavia no vence).
-  const diasMora = proximaCuota
-    ? Math.max(0, dayjs().diff(dayjs(proximaCuota.fecha_pago), 'day'))
+  const hoy = dayjs();
+  const fechaPagoRealRaw = proximaCuota ? proximaCuota.fecha_pago : null;
+  const promesaDay = proximaCuota && proximaCuota.fecha_proximo_pago
+    ? dayjs(proximaCuota.fecha_proximo_pago)
+    : null;
+  const referenciaDay = promesaDay && promesaDay.isAfter(hoy) ? promesaDay : hoy;
+  const fechaProximoPagoRaw = proximaCuota ? referenciaDay.format('YYYY-MM-DD') : null;
+  const fechaPagoReal = fechaPagoRealRaw ? dayjs(fechaPagoRealRaw).format('DD/MM/YYYY') : null;
+  const fechaProximoPago = fechaProximoPagoRaw ? dayjs(fechaProximoPagoRaw).format('DD/MM/YYYY') : null;
+  const diasMora = (fechaProximoPagoRaw && fechaPagoRealRaw)
+    ? Math.max(0, dayjs(fechaProximoPagoRaw).diff(dayjs(fechaPagoRealRaw), 'day'))
     : 0;
 
   // Pago de saldo total mas reciente con snapshot (revertible)
@@ -840,13 +953,14 @@ const BotonesPagoRapido = () => {
       <Paper elevation={3} sx={{ p: 3, mb: 3, backgroundColor: 'rgba(25, 118, 210, 0.05)' }}>
         <Typography variant="h6" gutterBottom color="primary" sx={{ mb: 1 }}>Opciones de Pago Rápido</Typography>
 
-        {/* Fecha del proximo pago, fecha de pago real y mora (informativo) */}
+        {/* Fecha Proximo Pago (promesa futura u hoy), Fecha Pago Real (vencimiento)
+            y mora. La mora se muestra SIEMPRE que haya una cuota pendiente. */}
         <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: { xs: 0.5, sm: 2 }, mb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <ScheduleIcon fontSize="small" sx={{ color: 'info.main' }} />
             <Typography variant="body2" color="text.secondary">
-              Próximo pago:{' '}
-              <strong style={{ color: fechaProximoPago ? '#0288d1' : '#2e7d32' }}>
+              Fecha Próximo Pago:{' '}
+              <strong style={{ color: proximaCuota ? '#0288d1' : '#2e7d32' }}>
                 {fechaProximoPago || 'Préstamo al día'}
               </strong>
             </Typography>
@@ -854,17 +968,18 @@ const BotonesPagoRapido = () => {
 
           {proximaCuota && (
             <Typography variant="body2" color="text.secondary">
-              Fecha pago real:{' '}
+              Fecha Pago Real:{' '}
               <strong style={{ color: '#455a64' }}>{fechaPagoReal}</strong>
             </Typography>
           )}
 
-          {diasMora > 0 && (
+          {proximaCuota && (
             <Chip
               size="small"
-              color="error"
+              color={diasMora > 0 ? 'error' : 'success'}
+              variant={diasMora > 0 ? 'filled' : 'outlined'}
               icon={<ScheduleIcon />}
-              label={`${diasMora} día${diasMora === 1 ? '' : 's'} de mora`}
+              label={`${diasMora} día${diasMora === 1 ? '' : 's'} de mora (Fecha Próximo Pago ${fechaProximoPago} − Fecha Pago Real ${fechaPagoReal})`}
               sx={{ fontWeight: 700 }}
             />
           )}

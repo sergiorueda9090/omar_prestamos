@@ -39,22 +39,76 @@ const DialogoInfoCliente = ({ open, onClose, cliente }) => {
   const dinero = (valor) => `$${formatMoney(parseMoney(valor))}`;
   const fecha = (valor) => (valor ? dayjs(valor).format('DD/MM/YYYY') : '—');
 
+  // Calcula los valores derivados del prestamo (abono total, saldo total,
+  // cuotas pagas/pendientes y dias de mora) con la MISMA logica que la
+  // tarjeta del modulo (calcularDatosPrestamo en OtherComponents.jsx).
+  const calcularDerivados = (c) => {
+    const cuotasArr = c.cuotas || [];
+    const esSinCronograma = c.prestamo_sin_cronograma;
+    const valorCuotaNum = parseMoney(c.valor_cuota);
+    const numCuotas = parseInt(c.numero_cuotas) || 0;
+    const saldoTotalNum = parseMoney(c.saldo_total_pagar);
+    const totalPagadoSin = parseMoney(c.total_pagado_cuotas_sin_cronograma);
+    const interesAcum = parseMoney(c.interes_acumulado);
+
+    const abonoTotal = esSinCronograma
+      ? totalPagadoSin
+      : cuotasArr.reduce((s, cu) => s + parseMoney(cu.abonado || 0), 0);
+
+    const saldoTotal = esSinCronograma
+      ? Math.max(0, saldoTotalNum - totalPagadoSin)
+      : cuotasArr.reduce((s, cu) => s + parseMoney(cu.saldo || cu.valor), 0);
+
+    let cuotasPagas = esSinCronograma
+      ? Math.round((totalPagadoSin / valorCuotaNum) * 10) / 10
+      : Math.round(cuotasArr.reduce((s, cu) => s + (parseMoney(cu.abonado || 0) / parseMoney(cu.valor)), 0) * 10) / 10;
+
+    let cuotasPendientes = esSinCronograma
+      ? Math.round((numCuotas - (totalPagadoSin / valorCuotaNum)) * 10) / 10
+      : Math.round((cuotasArr.length - cuotasArr.reduce((s, cu) => s + (parseMoney(cu.abonado || 0) / parseMoney(cu.valor)), 0)) * 10) / 10;
+
+    if (isNaN(cuotasPagas)) cuotasPagas = 0;
+    if (isNaN(cuotasPendientes)) cuotasPendientes = 0;
+
+    // Dias de mora actuales del prestamo: el mayor atraso entre las cuotas
+    // aun no pagadas cuya fecha de vencimiento ya paso (mora acumulada a hoy).
+    const diasMora = cuotasArr.reduce((max, cu) => {
+      if (cu.estado_pago !== 'pagado' && cu.fecha_pago) {
+        return Math.max(max, Math.max(0, dayjs().diff(dayjs(cu.fecha_pago), 'day')));
+      }
+      return max;
+    }, 0);
+
+    return { abonoTotal, saldoTotal, cuotasPagas, cuotasPendientes, diasMora, interesAcum };
+  };
+
   // Construye la lista de filas de informacion a partir del cliente.
+  // Orden solicitado: el nombre primero, luego fecha, tipo, total cuotas,
+  // valor cuota, cuotas pagas/pendientes, saldo total, abono total, dias de
+  // mora y a continuacion el resto de los datos.
   const construirFilas = (c) => {
     if (!c) return [];
+    const d = calcularDerivados(c);
     const filas = [
+      { key: 'nombre', label: 'Nombre', value: c.nombre || '—' },
+      { key: 'fecha_prestamo', label: 'Fecha del Préstamo', value: fecha(c.fecha_prestamo) },
+      { key: 'tipo_prestamo', label: 'Tipo de Préstamo', value: c.tipo_prestamo || '—' },
+      { key: 'numero_cuotas', label: 'Total Cuotas', value: c.numero_cuotas },
+      { key: 'valor_cuota', label: 'Valor Cuota', value: dinero(c.valor_cuota) },
+      { key: 'cuotas_pagas', label: 'Cuotas Pagas', value: d.cuotasPagas },
+      { key: 'cuotas_pendientes', label: 'Cuotas Pendientes', value: d.cuotasPendientes },
+      { key: 'saldo_total', label: 'Saldo Total', value: dinero(d.saldoTotal) },
+      { key: 'abono_total', label: 'Abono Total', value: dinero(d.abonoTotal) },
+      { key: 'dias_mora', label: 'Días de Mora', value: `${d.diasMora} día${d.diasMora === 1 ? '' : 's'}` },
       { key: 'monto_prestamo', label: 'Monto del Préstamo', value: dinero(c.monto_prestamo) },
       { key: 'porcentaje_interes', label: '% Interés', value: `${c.porcentaje_interes}%` },
-      { key: 'tipo_prestamo', label: 'Tipo de Préstamo', value: c.tipo_prestamo || '—' },
       { key: 'duracion_prestamo', label: 'Duración', value: `${c.duracion_prestamo} meses` },
-      { key: 'fecha_prestamo', label: 'Fecha del Préstamo', value: fecha(c.fecha_prestamo) },
       { key: 'dia_cobro', label: 'Día de Cobro', value: fecha(c.dia_cobro) },
-      { key: 'numero_cuotas', label: 'N° de Cuotas', value: c.numero_cuotas },
-      { key: 'valor_cuota', label: 'Valor Cuota', value: dinero(c.valor_cuota) },
       { key: 'interes_mensual', label: 'Interés Mensual', value: dinero(c.interes_mensual) },
       { key: 'total_interes_pagar', label: 'Total Interés a Pagar', value: dinero(c.total_interes_pagar) },
       { key: 'saldo_total_pagar', label: 'Saldo Total a Pagar', value: dinero(c.saldo_total_pagar) },
       { key: 'interes_acumulado', label: 'Interés Acumulado', value: dinero(c.interes_acumulado) },
+      { key: 'abono_total_intereses', label: 'Abono Total + Intereses', value: dinero(d.abonoTotal + d.interesAcum) },
     ];
     if (c.prestamo_sin_cronograma) {
       filas.push({
@@ -161,12 +215,9 @@ const DialogoInfoCliente = ({ open, onClose, cliente }) => {
 
       <DialogContent dividers>
         <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>{cliente.nombre || '—'}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Tarjeta: {cliente.numero_tarjeta || '—'}
-            </Typography>
-          </Box>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Tarjeta: {cliente.numero_tarjeta || '—'}
+          </Typography>
           {estadoChip()}
         </Box>
 
@@ -186,6 +237,58 @@ const DialogoInfoCliente = ({ open, onClose, cliente }) => {
         ) : (
           filas.map((fila) => {
             const valorKey = `info:${fila.key}:value`;
+
+            // El nombre del cliente se muestra de forma destacada (encabezado)
+            // para que sea mas claro y profesional, no como una fila mas.
+            if (fila.key === 'nombre') {
+              return (
+                <Box
+                  key={fila.key}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 1.5,
+                    p: 1.5,
+                    mb: 1.5,
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'primary.light',
+                    bgcolor: (t) => t.palette.action.hover,
+                  }}
+                >
+                  <Box display="flex" alignItems="center" sx={{ minWidth: 0, gap: 1.5 }}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="overline" color="text.secondary" sx={{ lineHeight: 1.2, display: 'block' }}>
+                        Cliente
+                      </Typography>
+                      <Tooltip title="Clic para quitar este valor de la vista">
+                        <Typography
+                          variant="h6"
+                          onClick={() => ocultarCelda(valorKey)}
+                          noWrap
+                          sx={{
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            userSelect: 'none',
+                            borderRadius: 1,
+                            '&:hover': { backgroundColor: 'error.light', color: 'error.contrastText' },
+                          }}
+                        >
+                          {celdaOculta(valorKey) ? ' ' : fila.value}
+                        </Typography>
+                      </Tooltip>
+                    </Box>
+                  </Box>
+                  <Tooltip title="Quitar toda la fila de la vista">
+                    <IconButton size="small" color="error" onClick={() => quitarFila(fila.key)}>
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              );
+            }
+
             return (
               <Box
                 key={fila.key}

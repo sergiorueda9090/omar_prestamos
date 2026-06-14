@@ -20,12 +20,14 @@ import { formatMoney, parseMoney, calcularInteresSimple, calcularInteresCuota, c
 import TarjetaInformacionPrestamo from './TarjetaInformacionPrestamo';
 import BotonesPagoRapido from './BotonesPagoRapido';
 import BotonesPagoSinCronograma from './BotonesPagoSinCronograma';
+import { confirmarEliminacion } from '../../../components/Alerts/AlertasCrud';
 
 // Redux actions
 import {
   actionCambiarFechaCuota,
   actionEliminarPagoCuota,
   actionEliminarPagoInteres,
+  actionEliminarPago,
   actionAmpliarPrestamo,
   actionCambiarPlazo,
 } from '../../../store/prestamosTestStore/prestamosTestStoreActions';
@@ -196,12 +198,13 @@ export const LoanInstallmentsManager = ({ cuotas, pagosIntereses = [] }) => {
     }
   };
 
-  // Mora historica registrada por vencimiento: cada pago guarda el vencimiento
-  // de la cuota en la que se debia (fecha_proximo_pago) y sus dias de mora.
+  // Mora historica registrada por vencimiento: cada pago guarda en fecha_pago_real
+  // el vencimiento de la cuota en la que se debia, junto con sus dias de mora.
+  // Se indexa por ese vencimiento para cruzarlo con cuota.fecha_pago.
   const moraRegistradaPorVencimiento = {};
   pagosCuota.forEach((p) => {
-    if (p.fecha_proximo_pago) {
-      const k = dayjs(p.fecha_proximo_pago).format('YYYY-MM-DD');
+    if (p.fecha_pago_real) {
+      const k = dayjs(p.fecha_pago_real).format('YYYY-MM-DD');
       moraRegistradaPorVencimiento[k] = Math.max(moraRegistradaPorVencimiento[k] || 0, p.dias_mora || 0);
     }
   });
@@ -763,7 +766,12 @@ export const PrestamoConCronograma = () => {
   return (
     <>
       <BotonesPagoRapido />
-      <LoanInstallmentsManager cuotas={cuotas} pagosIntereses={pagosIntereses} />
+      {/* "Historial de Pagos Realizados" va justo debajo de "Opciones de Pago Rápido". */}
+      <TablaPagosRealizados />
+      {/* "Cronograma de Cuotas" y "Pagos de Intereses" ocultos por solicitud.
+          La gestión/eliminación de pagos se hace desde "Historial de Pagos
+          Realizados" (TablaPagosRealizados). El componente LoanInstallmentsManager
+          se conserva por si se requiere reactivar el cronograma. */}
       <PagoAnticipado montoOriginal={montoOriginal} tasaOriginal={tasaOriginal} numeroCuotasOriginal={numCuotas} />
       <LoanExtensionPanel
         montoOriginal={montoOriginal}
@@ -820,6 +828,9 @@ export const PrestamoSinCronograma = () => {
       <Alert severity="info" sx={{ mb: 3 }}><strong>Préstamo sin cronograma de cuotas</strong><br />Puede ajustar el plazo de pago según las necesidades del cliente.</Alert>
 
       <BotonesPagoSinCronograma />
+
+      {/* "Historial de Pagos Realizados" va justo debajo de "Opciones de Pago Rápido". */}
+      <TablaPagosRealizados />
 
       <Card sx={{ mb: 3, backgroundColor: 'info.50' }}>
         <CardContent>
@@ -889,6 +900,154 @@ export const PrestamoSinCronograma = () => {
 
       <PagoAnticipado montoOriginal={montoOriginal} tasaOriginal={tasaOriginal} numeroCuotasOriginal={numCuotas} />
     </>
+  );
+};
+
+
+// ============================================================================
+// HISTORIAL DE PAGOS REALIZADOS (cuotas + intereses)
+// ============================================================================
+// Tabla consolidada (estilo "Cronograma de Cuotas") que reúne en una sola
+// vista todas las CUOTAS pagadas y los INTERESES pagados de un préstamo,
+// ordenados por fecha. Aplica tanto a préstamos con cronograma como sin él.
+// Columnas: Fecha del pago, Valor del pago, Tipo (Cuota / Interés).
+// ============================================================================
+
+export const TablaPagosRealizados = () => {
+  const dispatch = useDispatch();
+  const { pagos, pagosIntereses } = useSelector(state => state.prestamosTestStore);
+
+  // Si hay un pago de saldo total activo (con snapshot), los abonos de cuotas
+  // provienen de ese pago masivo y no se pueden eliminar individualmente: hay
+  // que revertir el saldo total primero (mismo criterio que el backend).
+  const hayPagoSaldoTotalActivo = (pagos || []).some(
+    p => p.tipo_pago === 'saldo_total' && p.tiene_snapshot,
+  );
+
+  // Pagos de cuota (con o sin cronograma). Se usa la fecha real del pago
+  // cuando existe (refleja la mora); si no, la fecha registrada.
+  // Cada fila es un registro de Pago y se elimina por su id: el backend borra
+  // el pago y recalcula el cronograma desde los pagos restantes.
+  const pagosCuota = (pagos || [])
+    .filter(p => p.tipo_pago === 'cuota' || p.tipo_pago === 'cuota_sin_cronograma')
+    .map(p => ({
+      id: `cuota-${p.id}`,
+      fecha: p.fecha_pago_real || p.fecha,
+      monto: p.monto,
+      tipo: 'cuota',
+      // Para eliminar: el id del registro de Pago.
+      pagoId: p.id,
+    }));
+
+  // Pagos de interés (incluye liquidaciones, que son interés cobrado al ampliar).
+  const pagosDeInteres = (pagosIntereses || []).map(p => ({
+    id: `interes-${p.id}`,
+    fecha: p.fecha,
+    monto: p.monto,
+    tipo: p.tipo === 'liquidacion' ? 'liquidacion' : 'interes',
+    // Para eliminar: el id del pago de interés (borrado directo).
+    pagoInteresId: p.id,
+  }));
+
+  // Pide confirmación y despacha la acción de eliminación que corresponde
+  // según el tipo de pago (interés/liquidación vs. cuota).
+  const handleEliminar = async (pago) => {
+    if (!(await confirmarEliminacion())) return;
+
+    const esInteres = pago.tipo === 'interes' || pago.tipo === 'liquidacion';
+    if (esInteres) {
+      dispatch(actionEliminarPagoInteres(pago.pagoInteresId));
+      return;
+    }
+
+    // Pago de cuota (con o sin cronograma): el backend elimina el pago y
+    // recalcula el cronograma para que todo cuadre de nuevo.
+    dispatch(actionEliminarPago(pago.pagoId));
+  };
+
+  // Una fila es eliminable si: es interés/liquidación, o es un pago de cuota
+  // que no esté bloqueado por un pago de saldo total activo.
+  const esEliminable = (pago) => {
+    if (pago.tipo === 'interes' || pago.tipo === 'liquidacion') return true;
+    return !hayPagoSaldoTotalActivo;
+  };
+
+  // Unificar y ordenar cronológicamente.
+  const todosLosPagos = [...pagosCuota, ...pagosDeInteres]
+    .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+  const getTipoChip = (tipo) => {
+    const configs = {
+      cuota:       { label: 'Cuota',       color: 'success', icon: <PaymentIcon /> },
+      interes:     { label: 'Interés',     color: 'warning', icon: <MoneyIcon /> },
+      liquidacion: { label: 'Liquidación', color: 'error',   icon: <MoneyIcon /> },
+    };
+    const config = configs[tipo] || configs.cuota;
+    return <Chip label={config.label} color={config.color} size="small" icon={config.icon} />;
+  };
+
+  const headers = ['N°', 'Fecha del Pago', 'Valor del Pago', 'Tipo', 'Acciones'];
+  const gridTemplate = '0.6fr 1.4fr 1.4fr 1.2fr 0.9fr';
+
+  return (
+    <Box sx={{ mt: 4 }}>
+      <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+        <PaymentIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+        Historial de Pagos Realizados
+      </Typography>
+
+      {todosLosPagos.length === 0 ? (
+        <Alert severity="info">Aún no se han registrado pagos de cuotas ni de intereses.</Alert>
+      ) : (
+        <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+          {/* Encabezado */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: gridTemplate, backgroundColor: 'primary.main', color: 'white' }}>
+            {headers.map((header, idx) => (
+              <Box key={idx} sx={{ p: 1.5, textAlign: 'center', borderRight: idx < headers.length - 1 ? '1px solid rgba(255,255,255,0.2)' : 'none' }}>
+                <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '13px' }}>{header}</Typography>
+              </Box>
+            ))}
+          </Box>
+
+          {/* Filas */}
+          {todosLosPagos.map((pago, index) => (
+            <Box key={pago.id} sx={{ display: 'grid', gridTemplateColumns: gridTemplate, backgroundColor: index % 2 === 0 ? 'rgba(0,0,0,0.02)' : '#fff', borderBottom: index < todosLosPagos.length - 1 ? '1px solid #dee2e6' : 'none', '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }}>
+              <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{index + 1}</Typography>
+              </Box>
+              <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+                <Typography variant="body2">{dayjs(pago.fecha).format('DD/MM/YYYY')}</Typography>
+              </Box>
+              <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+                <Typography variant="body2" sx={{ fontWeight: 'bold', color: pago.tipo === 'cuota' ? 'success.main' : 'warning.dark' }}>
+                  ${formatMoney(pago.monto)}
+                </Typography>
+              </Box>
+              <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
+                {getTipoChip(pago.tipo)}
+              </Box>
+              <Box sx={{ p: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {esEliminable(pago) ? (
+                  <Tooltip title={pago.tipo === 'cuota' ? 'Eliminar pago (recalcula el préstamo)' : 'Eliminar pago de interés'}>
+                    <Button size="small" variant="outlined" color="error" onClick={() => handleEliminar(pago)} sx={{ minWidth: 'auto', px: 1, fontSize: '11px' }}>
+                      <CloseIcon fontSize="small" />
+                    </Button>
+                  </Tooltip>
+                ) : (
+                  <Tooltip title="Revierta el pago de saldo total para eliminar pagos de cuota">
+                    <span>
+                      <Button size="small" variant="outlined" color="error" disabled sx={{ minWidth: 'auto', px: 1, fontSize: '11px' }}>
+                        <CloseIcon fontSize="small" />
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
+              </Box>
+            </Box>
+          ))}
+        </Paper>
+      )}
+    </Box>
   );
 };
 
