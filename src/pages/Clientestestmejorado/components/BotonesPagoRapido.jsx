@@ -29,24 +29,6 @@ import {
 } from '../../../store/prestamosTestStore/prestamosTestStoreActions';
 
 
-// ============================================================================
-// HELPER: REFERENCIA DE "FECHA PROXIMO PAGO" PARA LA MORA
-// ============================================================================
-// Devuelve la fecha de referencia contra la que se mide la mora:
-//   - la promesa del cliente (fecha_proximo_pago de la cuota) SI es futura;
-//   - si no hay promesa (o ya paso), HOY.
-// Asi la mora SIEMPRE refleja el atraso real, igual que en el panel de Pago
-// Rapido, aunque no exista una promesa guardada. Mora = referencia - vencimiento.
-// ============================================================================
-
-const calcularFechaProximoPagoRef = (fechaProximoPagoCuota) => {
-  const hoy = dayjs();
-  const promesa = fechaProximoPagoCuota ? dayjs(fechaProximoPagoCuota) : null;
-  return (promesa && promesa.isAfter(hoy))
-    ? promesa.format('YYYY-MM-DD')
-    : hoy.format('YYYY-MM-DD');
-};
-
 
 // ============================================================================
 // ESTILOS COMPARTIDOS
@@ -132,11 +114,15 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
 
   // Cuota en la que sigue debiendo (la pendiente mas antigua).
   // Fecha Pago Real = su vencimiento real (fecha_pago).
-  // Fecha Proximo Pago = la promesa del cliente si es futura; si no, HOY
-  // (misma logica que el panel: la mora siempre refleja el atraso real).
+  // Fecha Proximo Pago inicial = la fecha guardada en la cuota (aunque sea pasada),
+  // o hoy si no hay ninguna guardada. No se usa calcularFechaProximoPagoRef aqui
+  // porque esa funcion enmascara fechas pasadas convirtiendolas a hoy, lo que
+  // impediria ver/editar una promesa pasada ya registrada.
   const proximaCuotaPendiente = cuotasPendientes[0];
   const vencimientoDefault = proximaCuotaPendiente?.fecha_pago || '';
-  const promesaDefault = calcularFechaProximoPagoRef(proximaCuotaPendiente?.fecha_proximo_pago);
+  const promesaDefault = proximaCuotaPendiente?.fecha_proximo_pago
+    ? dayjs(proximaCuotaPendiente.fecha_proximo_pago).format('YYYY-MM-DD')
+    : dayjs().format('YYYY-MM-DD');
 
   useEffect(() => {
     if (open) {
@@ -380,12 +366,14 @@ const DialogoPagoInteresPersonalizado = ({ open, onClose }) => {
   const interesMensualRef = capital * (parseFloat(porcentajeInteres) || 0) / 100;
 
   // Igual que en Pagar Cuota: Fecha Pago Real = vencimiento real de la proxima
-  // cuota pendiente; Fecha Proximo Pago = la promesa del cliente si es futura,
-  // si no HOY (misma logica que el panel; la mora refleja el atraso real).
+  // cuota pendiente; Fecha Proximo Pago inicial = la fecha guardada en la cuota
+  // (aunque sea pasada), o hoy si no hay ninguna guardada.
   const cuotasPendientes = (cuotas || []).filter(c => c.estado_pago !== 'pagado');
   const proximaCuotaPendiente = cuotasPendientes[0];
   const vencimientoDefault = proximaCuotaPendiente?.fecha_pago || '';
-  const promesaDefault = calcularFechaProximoPagoRef(proximaCuotaPendiente?.fecha_proximo_pago);
+  const promesaDefault = proximaCuotaPendiente?.fecha_proximo_pago
+    ? dayjs(proximaCuotaPendiente.fecha_proximo_pago).format('YYYY-MM-DD')
+    : dayjs().format('YYYY-MM-DD');
 
   useEffect(() => {
     if (open) {
@@ -726,10 +714,14 @@ const DialogoGestionProximoPago = ({ open, onClose }) => {
   const proximaCuota = cuotasPendientes[0];
   // Fecha Pago Real = vencimiento REAL de la cuota (no se modifica aqui).
   const fechaVencimientoOriginal = proximaCuota ? dayjs(proximaCuota.fecha_pago).format('YYYY-MM-DD') : '';
-  // Promesa de pago: la guardada (fecha_proximo_pago) si es futura; si no hay
-  // (o ya paso), HOY. Misma logica que el panel: la mora refleja el atraso real.
+  // Promesa de pago: la fecha guardada en la cuota tal cual (aunque sea pasada),
+  // o hoy si no hay ninguna. No se usa calcularFechaProximoPagoRef aqui porque
+  // esa funcion enmascara fechas pasadas devolviendo hoy, lo que hace invisible
+  // una promesa pasada ya registrada e impide editarla.
   const promesaGuardada = proximaCuota
-    ? calcularFechaProximoPagoRef(proximaCuota.fecha_proximo_pago)
+    ? (proximaCuota.fecha_proximo_pago
+        ? dayjs(proximaCuota.fecha_proximo_pago).format('YYYY-MM-DD')
+        : dayjs().format('YYYY-MM-DD'))
     : '';
 
   const [fechaProximoPago, setFechaProximoPago] = useState('');
@@ -887,19 +879,19 @@ const BotonesPagoRapido = () => {
   const saldoTotalPendiente = cuotasPendientes.reduce((sum, c) => sum + parseMoney(c.saldo !== undefined ? c.saldo : c.valor), 0);
 
   // Cuota pendiente mas antigua. Fecha Pago Real = su vencimiento real (fecha_pago).
-  // Fecha Proximo Pago (referencia de mora) = la promesa del cliente SI es futura;
-  // si no hay promesa (o ya paso), se usa HOY. Asi la mora SIEMPRE refleja el
-  // atraso real aunque no haya promesa guardada. Mora = proximo - real (min 0).
-  // Al pagar la cuota mas antigua, cuotasPendientes[0] avanza a la siguiente
-  // (vence ~30 dias despues), por lo que la mora baja sola (ej: 50 -> 20 dias).
+  // Fecha Proximo Pago = la promesa guardada por el usuario (aunque sea pasada),
+  // o hoy si no hay ninguna. El panel siempre refleja lo que se guardo.
+  // Al pagar la cuota mas antigua, cuotasPendientes[0] avanza a la siguiente.
   const proximaCuota = cuotasPendientes[0];
   const hoy = dayjs();
   const fechaPagoRealRaw = proximaCuota ? proximaCuota.fecha_pago : null;
-  const promesaDay = proximaCuota && proximaCuota.fecha_proximo_pago
-    ? dayjs(proximaCuota.fecha_proximo_pago)
+  // Muestra la fecha guardada en la cuota tal cual (aunque sea pasada), o hoy
+  // si no hay ninguna. Asi el panel siempre refleja lo que el usuario guardo.
+  const fechaProximoPagoRaw = proximaCuota
+    ? (proximaCuota.fecha_proximo_pago
+        ? dayjs(proximaCuota.fecha_proximo_pago).format('YYYY-MM-DD')
+        : hoy.format('YYYY-MM-DD'))
     : null;
-  const referenciaDay = promesaDay && promesaDay.isAfter(hoy) ? promesaDay : hoy;
-  const fechaProximoPagoRaw = proximaCuota ? referenciaDay.format('YYYY-MM-DD') : null;
   const fechaPagoReal = fechaPagoRealRaw ? dayjs(fechaPagoRealRaw).format('DD/MM/YYYY') : null;
   const fechaProximoPago = fechaProximoPagoRaw ? dayjs(fechaProximoPagoRaw).format('DD/MM/YYYY') : null;
   const diasMora = (fechaProximoPagoRaw && fechaPagoRealRaw)
