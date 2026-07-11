@@ -211,14 +211,17 @@ export const LoanInstallmentsManager = ({ cuotas, pagosIntereses = [] }) => {
 
   // Dias de mora de una cuota:
   // - Si hay un pago registrado para su vencimiento, usa la mora historica.
-  // - Si sigue pendiente/parcial y ya vencio, calcula la mora acumulada a hoy.
+  // - Si sigue pendiente/parcial y ya vencio, calcula la mora acumulada a hoy
+  //   tomando como referencia la promesa del cliente (fecha_proximo_pago) si
+  //   existe, o el vencimiento original (fecha_pago) si no la hay.
   const getMoraCuota = (cuota) => {
     const venc = cuota.fecha_pago ? dayjs(cuota.fecha_pago).format('YYYY-MM-DD') : null;
     if (venc && moraRegistradaPorVencimiento[venc] !== undefined) {
       return { dias: moraRegistradaPorVencimiento[venc], enCurso: false };
     }
     if (venc && cuota.estado_pago !== 'pagado') {
-      return { dias: Math.max(0, dayjs().diff(dayjs(venc), 'day')), enCurso: true };
+      const referencia = cuota.fecha_proximo_pago ? dayjs(cuota.fecha_proximo_pago) : dayjs(venc);
+      return { dias: Math.max(0, dayjs().diff(referencia, 'day')), enCurso: true };
     }
     return { dias: 0, enCurso: false };
   };
@@ -924,15 +927,16 @@ export const TablaPagosRealizados = () => {
     p => p.tipo_pago === 'saldo_total' && p.tiene_snapshot,
   );
 
-  // Pagos de cuota (con o sin cronograma). Se usa la fecha real del pago
-  // cuando existe (refleja la mora); si no, la fecha registrada.
+  // Pagos de cuota (con o sin cronograma). "fecha" es la Fecha del Pago
+  // ingresada al registrar el pago; NO usar fecha_pago_real, que es el
+  // vencimiento de la cuota (solo sirve para calcular la mora).
   // Cada fila es un registro de Pago y se elimina por su id: el backend borra
   // el pago y recalcula el cronograma desde los pagos restantes.
   const pagosCuota = (pagos || [])
     .filter(p => p.tipo_pago === 'cuota' || p.tipo_pago === 'cuota_sin_cronograma')
     .map(p => ({
       id: `cuota-${p.id}`,
-      fecha: p.fecha_pago_real || p.fecha,
+      fecha: p.fecha,
       monto: p.monto,
       tipo: 'cuota',
       // Para eliminar: el id del registro de Pago.
