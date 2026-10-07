@@ -46,6 +46,7 @@ const mapearRespuestaARedux = (data) => {
     estado                          : data.estado || "vigente",
     totalPagadoCuotasSinCronograma  : data.total_pagado_cuotas_sin_cronograma || "0",
     interesAcumulado                : data.interes_acumulado || "0",
+    saldoInteresPendiente           : data.saldo_interes_pendiente || "0",
     prestamoGenerado                : true,
     cuotas                          : data.cuotas || [],
     pagos                           : data.pagos || [],
@@ -352,12 +353,20 @@ export const actionPagarCuotaSinCronograma = (monto, fechaPago) => {
 // Este pago NO reduce cuotas, solo se suma a las utilidades.
 // =============================================================================
 
-export const actionPagarInteres = (monto, fecha, descripcion = '') => {
+export const actionPagarInteres = (monto, fecha, descripcion = '', fechaProximoPago = '', fechaPagoReal = '') => {
   return async (dispatch, getState) => {
     await dispatch(handleShowBackDrop());
 
     const { authStore, prestamosTestStore } = getState();
     const { id } = prestamosTestStore;
+
+    const data = {
+      monto: String(monto).replace(/\./g, ''),
+      fecha,
+      descripcion,
+    };
+    if (fechaProximoPago) data.fecha_proximo_pago = fechaProximoPago;
+    if (fechaPagoReal) data.fecha_pago_real = fechaPagoReal;
 
     const options = {
       method: 'POST',
@@ -366,11 +375,7 @@ export const actionPagarInteres = (monto, fecha, descripcion = '') => {
         Authorization: `Bearer ${authStore.token}`,
         "Content-Type": "application/json",
       },
-      data: {
-        monto: String(monto).replace(/\./g, ''),
-        fecha,
-        descripcion,
-      },
+      data,
     };
 
     try {

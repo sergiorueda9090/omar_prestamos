@@ -71,10 +71,12 @@ const DialogoInfoCliente = ({ open, onClose, cliente }) => {
     if (isNaN(cuotasPendientes)) cuotasPendientes = 0;
 
     // Dias de mora actuales del prestamo: el mayor atraso entre las cuotas
-    // aun no pagadas cuya fecha de vencimiento ya paso (mora acumulada a hoy).
+    // aun no pagadas, usando la misma formula que BotonesPagoRapido.jsx:
+    // fecha_proximo_pago (promesa, u hoy si no hay ninguna) - fecha_pago (vencimiento).
     const diasMora = cuotasArr.reduce((max, cu) => {
       if (cu.estado_pago !== 'pagado' && cu.fecha_pago) {
-        return Math.max(max, Math.max(0, dayjs().diff(dayjs(cu.fecha_pago), 'day')));
+        const referencia = cu.fecha_proximo_pago ? dayjs(cu.fecha_proximo_pago) : dayjs();
+        return Math.max(max, Math.max(0, referencia.diff(dayjs(cu.fecha_pago), 'day')));
       }
       return max;
     }, 0);

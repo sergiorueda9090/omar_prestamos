@@ -136,11 +136,13 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
     }
   }, [open, promesaDefault, vencimientoDefault]);
 
-  // Mora (solo visual, no se guarda en el backend): diferencia de dias entre la
-  // fecha que el cliente dice que pagara (Fecha Proximo Pago) y la fecha en que
-  // la cuota se debia pagar (Fecha Pago Real). Si ambas son iguales, es 0.
-  const diasMora = (fechaProximoPago && fechaPagoReal)
-    ? Math.max(0, dayjs(fechaProximoPago).diff(dayjs(fechaPagoReal), 'day'))
+  // Mora del pago que se esta registrando AHORA: diferencia de dias entre la
+  // Fecha del Pago (cuando el cliente realmente paga, hoy por defecto) y la
+  // Fecha Pago Real (vencimiento original de la cuota). NO se usa Fecha
+  // Proximo Pago aqui porque esa fecha es la promesa para el SIGUIENTE ciclo
+  // (se guarda aparte) y no debe inflar la mora de este pago.
+  const diasMora = (fechaPago && fechaPagoReal)
+    ? Math.max(0, dayjs(fechaPago).diff(dayjs(fechaPagoReal), 'day'))
     : 0;
 
   const calcularDistribucion = (monto) => {
@@ -257,8 +259,8 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
               />
             </Grid>
 
-            {/* Resumen de mora: Fecha Proximo Pago (promesa) - Fecha Pago Real
-                (vencimiento). El detalle tambien aparece por cuota en la tabla. */}
+            {/* Resumen de mora: Fecha del Pago (hoy) - Fecha Pago Real (vencimiento).
+                El detalle tambien aparece por cuota en la tabla. */}
             <Grid item xs={12}>
               <Alert
                 severity={diasMora > 0 ? 'error' : 'success'}
@@ -268,10 +270,10 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
                 {diasMora > 0 ? (
                   <>
                     <strong>{diasMora} día{diasMora === 1 ? '' : 's'} de mora</strong>
-                    {' '}(Fecha Próximo Pago {dayjs(fechaProximoPago).format('DD/MM/YYYY')} − Fecha Pago Real {dayjs(fechaPagoReal).format('DD/MM/YYYY')}).
+                    {' '}(Fecha del Pago {dayjs(fechaPago).format('DD/MM/YYYY')} − Fecha Pago Real {dayjs(fechaPagoReal).format('DD/MM/YYYY')}).
                   </>
                 ) : (
-                  <>Sin mora: la <strong>Fecha Próximo Pago</strong> no supera la <strong>Fecha Pago Real</strong>.</>
+                  <>Sin mora: la <strong>Fecha del Pago</strong> no supera la <strong>Fecha Pago Real</strong>.</>
                 )}
               </Alert>
             </Grid>
@@ -355,7 +357,7 @@ const DialogoPagoCuotaPersonalizado = ({ open, onClose }) => {
 
 const DialogoPagoInteresPersonalizado = ({ open, onClose }) => {
   const dispatch = useDispatch();
-  const { porcentajeInteres, montoPrestamo, cuotas } = useSelector(state => state.prestamosTestStore);
+  const { porcentajeInteres, montoPrestamo, cuotas, interesMensual, saldoInteresPendiente } = useSelector(state => state.prestamosTestStore);
   const [montoPago, setMontoPago] = useState('');
   const [fechaPago, setFechaPago] = useState(dayjs().format('YYYY-MM-DD'));
   const [fechaProximoPago, setFechaProximoPago] = useState('');
@@ -363,7 +365,13 @@ const DialogoPagoInteresPersonalizado = ({ open, onClose }) => {
   const [descripcion, setDescripcion] = useState('');
 
   const capital = parseMoney(montoPrestamo);
-  const interesMensualRef = capital * (parseFloat(porcentajeInteres) || 0) / 100;
+  const interesMensualRef = parseMoney(interesMensual) || (capital * (parseFloat(porcentajeInteres) || 0) / 100);
+  const saldoPendienteNum = parseMoney(saldoInteresPendiente);
+  // Lo que falta para cubrir el periodo actual: si ya hay un saldo pendiente de
+  // un pago parcial anterior, solo falta ese saldo; si no, falta el interes
+  // mensual completo. Cubrirlo corre el vencimiento de las cuotas pendientes
+  // un periodo (no cuenta como mora).
+  const faltaParaCubrirPeriodo = saldoPendienteNum > 0 ? saldoPendienteNum : interesMensualRef;
 
   // Igual que en Pagar Cuota: Fecha Pago Real = vencimiento real de la proxima
   // cuota pendiente; Fecha Proximo Pago inicial = la fecha guardada en la cuota
@@ -385,23 +393,23 @@ const DialogoPagoInteresPersonalizado = ({ open, onClose }) => {
     }
   }, [open, promesaDefault, vencimientoDefault]);
 
-  // Mora (solo visual): diferencia de dias entre la Fecha Proximo Pago (promesa)
-  // y la Fecha Pago Real (vencimiento real de la cuota).
-  const diasMora = (fechaProximoPago && fechaPagoReal)
-    ? Math.max(0, dayjs(fechaProximoPago).diff(dayjs(fechaPagoReal), 'day'))
+  // Mora del pago que se esta registrando AHORA: diferencia de dias entre la
+  // Fecha del Pago (hoy por defecto) y la Fecha Pago Real (vencimiento real de
+  // la cuota). NO se usa Fecha Proximo Pago aqui: esa es la promesa para el
+  // SIGUIENTE ciclo (se guarda aparte en la cuota) y no debe inflar la mora
+  // de este pago solo por programar cuando se pagara despues.
+  const diasMora = (fechaPago && fechaPagoReal)
+    ? Math.max(0, dayjs(fechaPago).diff(dayjs(fechaPagoReal), 'day'))
     : 0;
 
   const handleConfirmar = async () => {
     const monto = parseMoney(montoPago);
     if (!monto || monto <= 0) { alert('El monto debe ser mayor a 0'); return; }
-    // 1. Registrar el pago de interes (monto, fecha, descripcion).
-    await dispatch(actionPagarInteres(monto, fechaPago, descripcion));
-    // 2. Si cambio la promesa (Fecha Proximo Pago), guardarla en la cuota para
-    // que se refleje en el panel y en los demas modales (sin tocar el vencimiento).
-    if (proximaCuotaPendiente && fechaProximoPago && fechaProximoPago !== promesaDefault) {
-      await dispatch(actionCambiarFechaProximoPago(proximaCuotaPendiente.id, fechaProximoPago));
-    }
-    // 3. Si cambio la Fecha Pago Real, actualiza el vencimiento real de la cuota.
+    // 1. Registrar el pago de interes (monto, fecha, descripcion) junto con las
+    // fechas de mora; el backend guarda la promesa (Fecha Proximo Pago) en la
+    // cuota pendiente dentro de la misma transaccion del pago.
+    await dispatch(actionPagarInteres(monto, fechaPago, descripcion, fechaProximoPago, fechaPagoReal));
+    // 2. Si cambio la Fecha Pago Real, actualiza el vencimiento real de la cuota.
     if (proximaCuotaPendiente && fechaPagoReal && fechaPagoReal !== vencimientoDefault) {
       await dispatch(actionCambiarFechaCuota(proximaCuotaPendiente.id, fechaPagoReal));
     }
@@ -431,8 +439,20 @@ const DialogoPagoInteresPersonalizado = ({ open, onClose }) => {
           </Grid>
         </Grid>
 
-        <Alert severity="warning" variant="outlined" sx={{ mb: 3, borderRadius: 2 }}>
+        <Alert severity="warning" variant="outlined" sx={{ mb: 2, borderRadius: 2 }}>
           Este pago <strong>no afecta</strong> el saldo de las cuotas. Se registra como ingreso adicional de interés y se refleja en las 3 utilidades.
+        </Alert>
+
+        {/* Si el interes completo del periodo queda cubierto con este pago, el
+            vencimiento de las cuotas pendientes se corre un periodo (sin mora).
+            Si queda parcial, el faltante se guarda como saldo pendiente y se
+            exige junto con el siguiente pago de interes. */}
+        <Alert severity={saldoPendienteNum > 0 ? 'error' : 'info'} variant="outlined" sx={{ mb: 3, borderRadius: 2 }}>
+          {saldoPendienteNum > 0 ? (
+            <>Queda <strong>${formatMoney(saldoPendienteNum)}</strong> pendiente de un pago de interés parcial anterior. Para cubrir el periodo (y correr el vencimiento de las cuotas pendientes sin generar mora) este pago debe ser de al menos <strong>${formatMoney(faltaParaCubrirPeriodo)}</strong>.</>
+          ) : (
+            <>Para cubrir el periodo completo (y correr el vencimiento de las cuotas pendientes sin generar mora) este pago debe ser de al menos <strong>${formatMoney(faltaParaCubrirPeriodo)}</strong>. Un pago menor queda como saldo pendiente.</>
+          )}
         </Alert>
 
         {/* Formulario */}
@@ -479,7 +499,7 @@ const DialogoPagoInteresPersonalizado = ({ open, onClose }) => {
               />
             </Grid>
 
-            {/* Resumen de mora: Fecha Proximo Pago (promesa) - Fecha Pago Real (vencimiento). */}
+            {/* Resumen de mora: Fecha del Pago (hoy) - Fecha Pago Real (vencimiento). */}
             <Grid item xs={12}>
               <Alert
                 severity={diasMora > 0 ? 'error' : 'success'}
@@ -489,10 +509,10 @@ const DialogoPagoInteresPersonalizado = ({ open, onClose }) => {
                 {diasMora > 0 ? (
                   <>
                     <strong>{diasMora} día{diasMora === 1 ? '' : 's'} de mora</strong>
-                    {' '}(Fecha Próximo Pago {dayjs(fechaProximoPago).format('DD/MM/YYYY')} − Fecha Pago Real {dayjs(fechaPagoReal).format('DD/MM/YYYY')}).
+                    {' '}(Fecha del Pago {dayjs(fechaPago).format('DD/MM/YYYY')} − Fecha Pago Real {dayjs(fechaPagoReal).format('DD/MM/YYYY')}).
                   </>
                 ) : (
-                  <>Sin mora: la <strong>Fecha Próximo Pago</strong> no supera la <strong>Fecha Pago Real</strong>.</>
+                  <>Sin mora: la <strong>Fecha del Pago</strong> no supera la <strong>Fecha Pago Real</strong>.</>
                 )}
               </Alert>
             </Grid>

@@ -209,19 +209,22 @@ export const LoanInstallmentsManager = ({ cuotas, pagosIntereses = [] }) => {
     }
   });
 
-  // Dias de mora de una cuota:
-  // - Si hay un pago registrado para su vencimiento, usa la mora historica.
-  // - Si sigue pendiente/parcial y ya vencio, calcula la mora acumulada a hoy
-  //   tomando como referencia la promesa del cliente (fecha_proximo_pago) si
-  //   existe, o el vencimiento original (fecha_pago) si no la hay.
+  // Dias de mora de una cuota (misma formula que los botones de pago rapido:
+  // fecha_proximo_pago - fecha_pago_real / vencimiento):
+  // - Si hay un pago registrado para su vencimiento, usa la mora historica
+  //   (congelada al momento de pagar).
+  // - Si sigue pendiente/parcial, la mora es la promesa del cliente
+  //   (fecha_proximo_pago) menos el vencimiento real (fecha_pago). Si no hay
+  //   promesa guardada aun, se usa hoy como referencia (igual que en
+  //   BotonesPagoRapido.jsx).
   const getMoraCuota = (cuota) => {
     const venc = cuota.fecha_pago ? dayjs(cuota.fecha_pago).format('YYYY-MM-DD') : null;
     if (venc && moraRegistradaPorVencimiento[venc] !== undefined) {
       return { dias: moraRegistradaPorVencimiento[venc], enCurso: false };
     }
     if (venc && cuota.estado_pago !== 'pagado') {
-      const referencia = cuota.fecha_proximo_pago ? dayjs(cuota.fecha_proximo_pago) : dayjs(venc);
-      return { dias: Math.max(0, dayjs().diff(referencia, 'day')), enCurso: true };
+      const referencia = cuota.fecha_proximo_pago ? dayjs(cuota.fecha_proximo_pago) : dayjs();
+      return { dias: Math.max(0, referencia.diff(dayjs(venc), 'day')), enCurso: true };
     }
     return { dias: 0, enCurso: false };
   };
@@ -771,10 +774,8 @@ export const PrestamoConCronograma = () => {
       <BotonesPagoRapido />
       {/* "Historial de Pagos Realizados" va justo debajo de "Opciones de Pago Rápido". */}
       <TablaPagosRealizados />
-      {/* "Cronograma de Cuotas" y "Pagos de Intereses" ocultos por solicitud.
-          La gestión/eliminación de pagos se hace desde "Historial de Pagos
-          Realizados" (TablaPagosRealizados). El componente LoanInstallmentsManager
-          se conserva por si se requiere reactivar el cronograma. */}
+      {/* Cronograma de Cuotas oculto a pedido: LoanInstallmentsManager sigue
+          definido mas abajo, solo se dejo de renderizar aqui. */}
       <PagoAnticipado montoOriginal={montoOriginal} tasaOriginal={tasaOriginal} numeroCuotasOriginal={numCuotas} />
       <LoanExtensionPanel
         montoOriginal={montoOriginal}
@@ -1250,7 +1251,7 @@ function calcularDatosPrestamo(store) {
   const {
     estado, numeroTarjeta, nombre, montoPrestamo, numeroCuotas,
     porcentajeInteres, valorCuota, fechaPrestamo, saldoTotalPagar,
-    totalInteresPagar, interesAcumulado, prestamoSinCronograma,
+    totalInteresPagar, interesAcumulado, saldoInteresPendiente, prestamoSinCronograma,
     totalPagadoCuotasSinCronograma, cuotas,
   } = store;
 
@@ -1297,6 +1298,7 @@ function calcularDatosPrestamo(store) {
     cuotasPagas: isNaN(cuotasPagas) ? 0 : cuotasPagas,
     cuotasPendientes: isNaN(cuotasPendientes) ? 0 : cuotasPendientes,
     intereses: interesAcum,
+    saldoInteresPendiente: parseMoney(saldoInteresPendiente),
     utilidadReal1: calcularUtilidad1(totalInteresNum, interesAcum),
     utilidadReal2: calcularUtilidad2(cuotasConPagos, montoOriginal, totalInteresNum, numCuotas, interesAcum),
     utilidadReal3: calcularUtilidad3(cuotasConPagos, montoOriginal, interesAcum),

@@ -34,6 +34,7 @@ export const prestamosTestStore = createSlice({
     estado                          : "",
     totalPagadoCuotasSinCronograma  : "0",
     interesAcumulado                : "0",
+    saldoInteresPendiente           : "0",
     prestamoGenerado                : false,
 
     // === DATOS RELACIONADOS (vienen del backend) ===
@@ -103,6 +104,7 @@ export const prestamosTestStore = createSlice({
       state.estado                          = "";
       state.totalPagadoCuotasSinCronograma  = "0";
       state.interesAcumulado                = "0";
+      state.saldoInteresPendiente           = "0";
       state.prestamoGenerado                = false;
       state.cuotas                          = [];
       state.pagos                           = [];
