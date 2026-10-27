@@ -5,7 +5,7 @@ import {
   Card, CardContent, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, IconButton, Tooltip, Dialog, DialogTitle,
   DialogContent, DialogActions, LinearProgress, List, ListItem,
-  ListItemText, Avatar, Collapse,
+  ListItemText, Avatar, Collapse, InputAdornment,
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon, Schedule as ScheduleIcon,
@@ -535,14 +535,38 @@ export const DialogoLiquidacion = ({
   const [tasaLiquidacion, setTasaLiquidacion] = useState('');
   const [plazoLiquidacion, setPlazoLiquidacion] = useState('');
   const [datosCalculados, setDatosCalculados] = useState(null);
+  const [fechaPago, setFechaPago] = useState('');
+  const [fechaProximoPago, setFechaProximoPago] = useState('');
+  const [fechaPagoReal, setFechaPagoReal] = useState('');
+
+  // Cuota pendiente mas antigua: misma referencia que usan los dialogos de
+  // Pagar Cuota / Pagar Interes para precargar Fecha Pago Real (vencimiento
+  // real) y Fecha Proximo Pago (promesa guardada, o hoy si no hay ninguna).
+  const cuotasPendientes = cuotas.filter((c) => c.estado_pago !== 'pagado');
+  const proximaCuotaPendiente = cuotasPendientes[0];
+  const vencimientoDefault = proximaCuotaPendiente?.fecha_pago || '';
+  const promesaDefault = proximaCuotaPendiente?.fecha_proximo_pago
+    ? dayjs(proximaCuotaPendiente.fecha_proximo_pago).format('YYYY-MM-DD')
+    : dayjs().format('YYYY-MM-DD');
 
   useEffect(() => {
     if (open) {
       setTasaLiquidacion(tasaOriginal ? tasaOriginal.toString() : '');
       setPlazoLiquidacion(cuotasRestantes ? cuotasRestantes.toString() : '');
       setDatosCalculados(null);
+      setFechaPago(dayjs().format('YYYY-MM-DD'));
+      setFechaProximoPago(promesaDefault);
+      setFechaPagoReal(vencimientoDefault || dayjs().format('YYYY-MM-DD'));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tasaOriginal, cuotasRestantes]);
+
+  // Mora del pago de liquidacion que se esta registrando: Fecha del Pago
+  // (hoy por defecto) frente a Fecha Pago Real (vencimiento real), igual
+  // criterio que Pagar Cuota / Pagar Interes.
+  const diasMora = (fechaPago && fechaPagoReal)
+    ? Math.max(0, dayjs(fechaPago).diff(dayjs(fechaPagoReal), 'day'))
+    : 0;
 
   const totalPagadoCuotas = cuotas.reduce((sum, c) => sum + parseMoney(c.abonado || 0), 0);
   // Solo pagos de interes manuales (tipo='interes'); los de tipo='liquidacion' son
@@ -586,6 +610,10 @@ export const DialogoLiquidacion = ({
       alert('Faltan parámetros de la ampliación');
       return;
     }
+    if (!fechaPago || !fechaProximoPago || !fechaPagoReal) {
+      alert('Fecha del Pago, Fecha Próximo Pago y Fecha Pago Real son obligatorias');
+      return;
+    }
     const { montoAdicional, nuevaTasa, nuevasCuotas } = parametrosAmpliacion;
     dispatch(actionAmpliarPrestamo(
       montoAdicional,
@@ -593,6 +621,9 @@ export const DialogoLiquidacion = ({
       nuevasCuotas,
       datosCalculados.tasaUtilizada,
       datosCalculados.plazoUtilizado,
+      fechaPago,
+      fechaProximoPago,
+      fechaPagoReal,
     ));
     handleCerrar();
   };
@@ -601,6 +632,9 @@ export const DialogoLiquidacion = ({
     setTasaLiquidacion('');
     setPlazoLiquidacion('');
     setDatosCalculados(null);
+    setFechaPago('');
+    setFechaProximoPago('');
+    setFechaPagoReal('');
     onClose();
   };
 
@@ -688,6 +722,69 @@ export const DialogoLiquidacion = ({
           </Grid>
         </Grid>
 
+        <Typography variant="subtitle1" gutterBottom sx={{ mt: 3, mb: 2 }}>
+          Fechas de la Liquidación
+        </Typography>
+
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              fullWidth
+              required
+              type="date"
+              label="Fecha del Pago"
+              value={fechaPago}
+              onChange={(e) => setFechaPago(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+              helperText="Cuando el cliente paga; queda registrada"
+            />
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              fullWidth
+              required
+              type="date"
+              label="Fecha Próximo Pago"
+              value={fechaProximoPago}
+              onChange={(e) => setFechaProximoPago(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+              helperText="Fecha que el cliente dice que pagará"
+            />
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              fullWidth
+              required
+              type="date"
+              label="Fecha Pago Real"
+              value={fechaPagoReal}
+              onChange={(e) => setFechaPagoReal(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon sx={{ color: 'text.secondary' }} /></InputAdornment> }}
+              helperText="Vencimiento real de la cuota (editable: actualiza el cronograma)"
+            />
+          </Grid>
+
+          <Grid item xs={12}>
+            <Alert
+              severity={diasMora > 0 ? 'error' : 'success'}
+              icon={<ScheduleIcon />}
+              sx={{ borderRadius: 2, alignItems: 'center' }}
+            >
+              {diasMora > 0 ? (
+                <>
+                  <strong>{diasMora} día{diasMora === 1 ? '' : 's'} de mora</strong>
+                  {' '}(Fecha del Pago {fechaPago ? dayjs(fechaPago).format('DD/MM/YYYY') : '—'} − Fecha Pago Real {fechaPagoReal ? dayjs(fechaPagoReal).format('DD/MM/YYYY') : '—'}).
+                </>
+              ) : (
+                <>Sin mora: la <strong>Fecha del Pago</strong> no supera la <strong>Fecha Pago Real</strong>.</>
+              )}
+            </Alert>
+          </Grid>
+        </Grid>
+
         {datosCalculados && (
           <Card
             variant="outlined"
@@ -737,7 +834,7 @@ export const DialogoLiquidacion = ({
           onClick={handleConfirmar}
           variant="contained"
           color="primary"
-          disabled={!datosCalculados}
+          disabled={!datosCalculados || !fechaPago || !fechaProximoPago || !fechaPagoReal}
           startIcon={<LiquidateIcon />}
         >
           Confirmar Liquidación y Ampliar
@@ -940,6 +1037,7 @@ export const TablaPagosRealizados = () => {
       fecha: p.fecha,
       monto: p.monto,
       tipo: 'cuota',
+      descripcion: p.descripcion || '',
       // Para eliminar: el id del registro de Pago.
       pagoId: p.id,
     }));
@@ -950,6 +1048,7 @@ export const TablaPagosRealizados = () => {
     fecha: p.fecha,
     monto: p.monto,
     tipo: p.tipo === 'liquidacion' ? 'liquidacion' : 'interes',
+    descripcion: p.descripcion || '',
     // Para eliminar: el id del pago de interés (borrado directo).
     pagoInteresId: p.id,
   }));
@@ -991,8 +1090,8 @@ export const TablaPagosRealizados = () => {
     return <Chip label={config.label} color={config.color} size="small" icon={config.icon} />;
   };
 
-  const headers = ['N°', 'Fecha del Pago', 'Valor del Pago', 'Tipo', 'Acciones'];
-  const gridTemplate = '0.6fr 1.4fr 1.4fr 1.2fr 0.9fr';
+  const headers = ['N°', 'Fecha del Pago', 'Valor del Pago', 'Tipo', 'Observación', 'Acciones'];
+  const gridTemplate = '0.6fr 1.2fr 1.2fr 1fr 1.6fr 0.9fr';
 
   return (
     <Box sx={{ mt: 4 }}>
@@ -1030,6 +1129,21 @@ export const TablaPagosRealizados = () => {
               </Box>
               <Box sx={{ p: 1.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid #dee2e6' }}>
                 {getTipoChip(pago.tipo)}
+              </Box>
+              <Box sx={{ p: 1.5, textAlign: 'left', display: 'flex', alignItems: 'center', borderRight: '1px solid #dee2e6' }}>
+                {pago.descripcion ? (
+                  <Tooltip title={pago.descripcion}>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
+                    >
+                      {pago.descripcion}
+                    </Typography>
+                  </Tooltip>
+                ) : (
+                  <Typography variant="body2" color="text.disabled">—</Typography>
+                )}
               </Box>
               <Box sx={{ p: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {esEliminable(pago) ? (

@@ -28,7 +28,7 @@ import { actionCrearNota, actionEliminarNota } from '../../../store/prestamosTes
 
 const TarjetaInformacionPrestamo = ({ datosPrestamo }) => {
   const dispatch = useDispatch();
-  const { notas } = useSelector(state => state.prestamosTestStore);
+  const { notas, ampliaciones } = useSelector(state => state.prestamosTestStore);
   const [nuevaNota, setNuevaNota] = useState('');
 
   if (!datosPrestamo) return null;
@@ -56,6 +56,17 @@ const TarjetaInformacionPrestamo = ({ datosPrestamo }) => {
     utilidadReal3 = 0,
   } = datosPrestamo;
 
+  // Fecha de cada ampliacion realizada sobre este prestamo, en orden cronologico.
+  // "Fecha del prestamo" (fecha de creacion original) se mantiene siempre arriba,
+  // sin importar cuantas ampliaciones se hagan despues.
+  const fechasAmpliacion = [...(ampliaciones || [])]
+    .sort((a, b) => a.id - b.id)
+    .map((amp, idx) => ({
+      label: `Fecha Ampliación ${idx + 1}`,
+      value: dayjs(amp.fecha_pago || amp.fecha).format('YYYY-MM-DD'),
+      isBold: true,
+    }));
+
   const rows = [
     { label: 'Estado Credito', value: estado, isBold: true, isHighlight: true },
     { label: 'Numero de la tarjeta', value: `# ${numeroTarjeta}`, isBold: true },
@@ -65,6 +76,7 @@ const TarjetaInformacionPrestamo = ({ datosPrestamo }) => {
     { label: '% interes', value: `${interes}%`, isBold: true },
     { label: 'Valor cuota', value: formatMoney(valorCuota), isBold: true },
     { label: 'Fecha del prestamo', value: dayjs(fechaPrestamo).format('YYYY-MM-DD'), isBold: true },
+    ...fechasAmpliacion,
     { label: 'Abono Total + intereses', value: formatMoney(abonoTotalIntereses), isBold: false },
     { label: 'Abono Total', value: formatMoney(abonoTotal), isBold: false },
     { label: 'Saldo Total', value: formatMoney(saldoTotal), isBold: false },

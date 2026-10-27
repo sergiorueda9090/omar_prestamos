@@ -715,7 +715,7 @@ export const actionEliminarPago = (pagoId) => {
 // Proceso: liquida, calcula saldo a favor, genera nuevo cronograma.
 // =============================================================================
 
-export const actionAmpliarPrestamo = (montoAdicional, nuevaTasa, nuevasCuotas, tasaLiquidacion = null, plazoLiquidacion = null) => {
+export const actionAmpliarPrestamo = (montoAdicional, nuevaTasa, nuevasCuotas, tasaLiquidacion = null, plazoLiquidacion = null, fechaPago = '', fechaProximoPago = '', fechaPagoReal = '') => {
   return async (dispatch, getState) => {
     await dispatch(handleShowBackDrop());
 
@@ -726,6 +726,9 @@ export const actionAmpliarPrestamo = (montoAdicional, nuevaTasa, nuevasCuotas, t
       monto_adicional: String(montoAdicional).replace(/\./g, ''),
       nueva_tasa: parseFloat(nuevaTasa),
       nuevas_cuotas: parseInt(nuevasCuotas),
+      fecha_pago: fechaPago,
+      fecha_proximo_pago: fechaProximoPago,
+      fecha_pago_real: fechaPagoReal,
     };
     if (tasaLiquidacion !== null && tasaLiquidacion !== undefined && tasaLiquidacion !== '') {
       data.tasa_liquidacion = parseFloat(tasaLiquidacion);
